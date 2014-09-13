@@ -1,0 +1,1 @@
+You can use the env you set up for the core argos project.
