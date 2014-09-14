@@ -1,33 +1,49 @@
 import json
 from random import random, randint
 from dateutil.parser import parse
+from datetime import datetime
 
 from core.models import Article
 
-def load_articles(test_file):
+def load_articles(test_file, with_labels=True):
     print('Loading articles from {0}...'.format(test_file))
     with open(test_file, 'r') as file:
         data = json.load(file)
 
-    # Build articles and true labels.
-    articles, labels_true = [], []
-    for idx, cluster in enumerate(data):
-        members = []
-        for a in cluster['articles']:
-            a['id'] = hash(a['title'])
 
-            # Handle MongoDB JSON dates.
-            for key in ['created_at', 'updated_at']:
-                a[key] = parse(a[key]['$date'])
+    if with_labels:
+        # Build articles and true labels.
+        articles, labels_true = [], []
+        for idx, cluster in enumerate(data):
+            members = []
+            for a in cluster['articles']:
+                article = process_article(a)
+                members.append(article)
+            articles += members
+            labels_true += [idx for i in range(len(members))]
 
-            article = Article(**a)
-            members.append(article)
-        articles += members
-        labels_true += [idx for i in range(len(members))]
+        print('Loaded {0} articles.'.format(len(articles)))
+        print('Expecting {0} events.'.format(len(data)))
+        return articles, labels_true
 
+    articles = [process_article(a) for a in data]
     print('Loaded {0} articles.'.format(len(articles)))
-    print('Expecting {0} events.'.format(len(data)))
-    return articles, labels_true
+    return articles
+
+
+def process_article(a):
+    a['id'] = hash(a['title'])
+
+    # Handle MongoDB JSON dates.
+    for key in ['created_at', 'updated_at']:
+        date = a[key]['$date']
+        if isinstance(date, int):
+            a[key] = datetime.fromtimestamp(date/1000)
+        else:
+            a[key] = parse(a[key]['$date'])
+
+    return Article(**a)
+
 
 def split_list(objs, n_groups=3):
     """

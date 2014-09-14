@@ -18,21 +18,19 @@ METRICS = ['adjusted_rand', 'adjusted_mutual_info', 'completeness', 'homogeneity
 def evaluate(datapath):
     articles, labels_true = load_articles(datapath)
 
-    bow_vecs, concept_vecs = [], []
-    for a in progress(articles, 'Building article vectors...'):
-        bow_vecs.append(a.vectors)
-        concept_vecs.append(a.concept_vectors)
-    bow_vecs = np.array(bow_vecs)
-    concept_vecs = np.array(concept_vecs)
+    vectors = build_vectors(articles)
 
-    # Merge the BoW features and the concept features as an ndarray.
-    vectors = hstack([coo_matrix(bow_vecs), coo_matrix(concept_vecs)]).A
-    print('Using {0} features.'.format(vectors.shape[1]))
+    #param_grid = ParameterGrid({
+        #'metric': ['euclidean', 'cosine', 'jaccard'],
+        #'linkage_method': ['average', 'weighted'],
+        #'threshold': np.arange(0.1, 1.0, 0.05)
+    #})
 
+    # Known best, from evaluating.
     param_grid = ParameterGrid({
-        'metric': ['euclidean', 'cosine', 'jaccard'],
-        'linkage_method': ['average', 'weighted'],
-        'threshold': np.arange(0.1, 1.0, 0.05)
+        'metric': ['cosine'],
+        'linkage_method': ['average'],
+        'threshold': [0.8]
     })
 
     results = []
@@ -60,7 +58,7 @@ def evaluate(datapath):
     now = datetime.now()
     dataname = datapath.split('/')[-1].split('.')[0]
     filename = '{0}_{1}'.format(dataname, now.isoformat())
-    report_path = build_report(filename, {
+    report_path = build_report('eval_report.html', filename, {
         'metrics': METRICS,
         'clusterables': articles,
         'results': results,
@@ -71,6 +69,46 @@ def evaluate(datapath):
     })
     webbrowser.open('file://{0}'.format(report_path), new=2)
 
+
+def test(datapath):
+    articles = load_articles(datapath, with_labels=False)
+    vectors = build_vectors(articles)
+
+    import time
+    start_time = time.time()
+    print('Clustering...')
+    labels = hac(vectors, 'cosine', 'average', 0.8)
+    elapsed_time = time.time() - start_time
+    print('Clustered in {0}'.format(elapsed_time))
+
+    clusters = labels_to_lists(articles, labels)
+
+    now = datetime.now()
+    dataname = datapath.split('/')[-1].split('.')[0]
+    filename = 'test_{0}_{1}'.format(dataname, now.isoformat())
+    report_path = build_report('test_report.html', filename, {
+        'clusterables': articles,
+        'clusters': clusters,
+        'dataset': datapath,
+        'date': now
+    })
+    webbrowser.open('file://{0}'.format(report_path), new=2)
+
+
+def build_vectors(articles):
+    bow_vecs, concept_vecs = [], []
+    for a in progress(articles, 'Building article vectors...'):
+        bow_vecs.append(a.vectors)
+        concept_vecs.append(a.concept_vectors)
+    bow_vecs = np.array(bow_vecs)
+    concept_vecs = np.array(concept_vecs)
+
+    # Merge the BoW features and the concept features as an ndarray.
+    print('Merging vectors...')
+    vectors = hstack([coo_matrix(bow_vecs), coo_matrix(concept_vecs)]).A
+    print('Using {0} features.'.format(vectors.shape[1]))
+
+    return vectors
 
 
 def labels_to_lists(objs, labels):

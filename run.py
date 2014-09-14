@@ -2,7 +2,7 @@ import sys
 import json
 
 from core.vectorize import train
-from core.evaluate import evaluate
+from core.evaluate import evaluate, test
 
 cmd = sys.argv[1]
 datapath = sys.argv[2]
@@ -15,4 +15,7 @@ if cmd == 'train':
     train(docs)
 
 elif cmd == 'evaluate':
-    labels_pred = evaluate(datapath)
+    evaluate(datapath)
+
+elif cmd == 'test':
+    test(datapath)

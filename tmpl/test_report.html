@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Report</title>
+    <style>
+        html, body {
+            font-family: "Helvetica", "Arial", "sans-serif";
+            background: #fafafa;
+            color: #222;
+            margin: 0
+        }
+
+        a, a:visited {
+            color: #09F;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        header {
+            background: #222;
+            color: #fff;
+            padding: 1em 1em 2.5em 1em;
+            font-size: 0.75em
+        }
+
+        .meta {
+            float: right;
+        }
+        .meta .muted {
+            color: #666;
+            margin-left: 1em;
+        }
+        .clusterable--header .meta {
+            margin-top: 0.1em;
+        }
+
+        h1, h2, h3 {
+            display: inline;
+            margin-right: 0.2em;
+        }
+
+        .overview, .results {
+            padding: 2em;
+        }
+
+        .clusterables {
+            padding: 2em;
+            background: #222;
+            color: #fff;
+        }
+        .clusters,
+        .clusterable--concepts {
+            -webkit-column-count: 3;
+            -moz-column-count: 3;
+            column-count: 3;
+            padding: 1em 0;
+        }
+        .clusters {
+            text-align: center;
+        }
+        .cluster {
+            background: #eaeaea;
+            padding: 2em;
+            margin: 1em 0;
+            font-size: 0.75em;
+            display: block;
+            text-align: left;
+            color: #222;
+
+            break-inside: avoid-column;
+            page-break-inside: avoid;
+            -webkit-column-break-inside: avoid;
+        }
+        .cluster:first-child {
+            margin-top: 0;
+        }
+        .cluster p:before {
+            content: '>';
+            color: #00ADFF;
+            margin-right: 0.5em;
+        }
+        .cluster a {
+            color: #222;
+        }
+        .clusterables {
+            border-top: 2px solid #09F;
+        }
+        .clusterable--header {
+            padding: 0.6em 0.5em 0.5em 0.6em;
+            color: #fff;
+            background: #09F;
+            margin-top: 1em;
+            margin-bottom: 0;
+        }
+        .clusterable--header .meta a {
+            color: #fff;
+        }
+        .clusterable--body {
+            background: #eaeaea;
+            color: #222;
+            font-size: 0.8em;
+        }
+        .clusterable--concepts,
+        .clusterable--text {
+            padding: 2em;
+            display: none;
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="meta">
+            <span class="muted">Run on</span> {{ date }}
+            <span class="muted">Using data from</span> {{ dataset }}
+        </div>
+    </header>
+
+    <section>
+        <section class="overview" id="overview">
+            <h1>Overview</h1>
+            <p>Clustered {{ clusterables|length }} clusterables.</p>
+        </section>
+
+        <section class="results">
+            <div class="clusters">
+                {% for cluster in clusters %}
+                    <div class="cluster">
+                        {% for member in cluster %}
+                            <p><a href="#{{ member.id }}">{{ member.title }}</a></p>
+                        {% endfor %}
+                    </div>
+                {% endfor %}
+            </div>
+        </section>
+    </section>
+
+    <section class="clusterables">
+        <h2>Clusterable details</h2>
+        {% for clusterable in clusterables %}
+            <div class="clusterable">
+                <div class="clusterable--header" id="{{ clusterable.id }}">
+                    <h3>{{ clusterable.title }}</h3>
+                    <div class="meta">
+                        <a onclick="toggle_visibility('{{ clusterable.id }}-concepts');">view concepts</a>
+                        <a onclick="toggle_visibility('{{ clusterable.id }}-text');">view text</a>
+                    </div>
+                </div>
+                <div class="clusterable--body">
+                    <ul class="clusterable--concepts" id="{{ clusterable.id }}-concepts">
+                        {% for concept in clusterable.concepts|sort %}
+                            <li>{{ concept }}</li>
+                        {% endfor %}
+                    </ul>
+                    <div class="clusterable--text" id="{{ clusterable.id }}-text">
+                        {{ clusterable.text }}
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </section>
+
+    <script type="text/javascript">
+        function toggle_visibility(id) {
+            var el = document.getElementById(id);
+            if (el.style.display == 'block') {
+                el.style.display = 'none';
+            } else {
+                el.style.display = 'block';
+            }
+        }
+    </script>
+
+</body>
+</html>

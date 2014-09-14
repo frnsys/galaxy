@@ -19,9 +19,10 @@
         header {
             background: #222;
             color: #fff;
-            padding: 1em;
+            padding: 1em 1em 2.5em 1em;
             font-size: 0.75em
         }
+
         .meta {
             float: right;
         }
@@ -42,6 +43,18 @@
             margin-right: 0.2em;
         }
 
+        .tabs {
+            float: left;
+        }
+        .tabs span {
+            display: inline-block;
+            margin-right: 0.5em;
+            cursor: pointer;
+        }
+        .tab {
+            display: none;
+        }
+
         .stats, .overview, .results {
             padding: 2em;
         }
@@ -49,6 +62,11 @@
         .stats {
             background: #222222;
             text-align: center;
+        }
+        .stats h1 {
+            display: block;
+            color: #fff;
+            margin: 1em 0;
         }
         .stat {
             text-align: center;
@@ -178,94 +196,64 @@
 <body>
 
     <header>
+        <div class="tabs">
+            {% for metric in metrics %}
+                <span onclick="show_tab('{{ metric }}');">{{ metric }}</span>
+            {% endfor %}
+        </div>
         <div class="meta">
             <span class="muted">Run on</span> {{ date }}
-            <span class="muted">Using data at</span> {{ datapath }}
+            <span class="muted">Using data from</span> {{ dataset }}
         </div>
     </header>
 
-    <section class="stats">
-        <div class="stat best">
-            Best score
-            <h4 class="stat--score">{{ best.score }}</h4>
-            {{ best.params }}
-        </div>
-        <div class="stat average">
-            Average score
-            <h4 class="stat--score">{{ average }}</h4>
-            Across all compositions
-        </div>
-        <div class="stat worst">
-            Worst score
-            <h4 class="stat--score">{{ worst.score }}</h4>
-            {{ worst.composition }}
-        </div>
-    </section>
-
-    <section class="overview" id="overview">
-        <h1>Overview</h1>
-        <p>Clustered {{ clusterables|length }} clusterables.</p>
-        <p>Expecting {{ expected|length }} clusters (<a href="#expected">view composition</a>).</p>
-
-        <div class="overview--results">
-            {% for strategy, results in all_clusters|dictsort %}
-                <div class="overview--result">
-                    <h2><a href="#{{ strategy }}">{{ strategy }}</a></h2>
-                    <table>
-                        <tr>
-                            <th>Threshold</th>
-                            <th>Score</th>
-                            <th>Num. Clusters</th>
-                        </tr>
-                        {% for threshold, clusters in results|dictsort %}
-                            <tr>
-                                <td><a href="#{{ strategy }}-{{ threshold }}">{{ threshold }}</a></td>
-                                <td>{{ all_scores[strategy][threshold] }}</td>
-                                <td>{{ clusters|length }}</td>
-                            </tr>
-                        {% endfor %}
-                    </table>
+    {% for metric in metrics %}
+        {% if loop.index == 1 %}
+            <section class="tab" id="{{ metric }}" style="display:block;">
+        {% else %}
+            <section class="tab" id="{{ metric }}">
+        {% endif %}
+            <section class="stats">
+                <h1>{{ metric }}</h1>
+                <div class="stat best">
+                    Best score
+                    <h4 class="stat--score">{{ bests[metric].score[metric] }}</h4>
+                    {{ bests[metric].params }}
                 </div>
-            {% endfor %}
-        </div>
-    </section>
+            </section>
 
-    <section class="results">
-        {% for strategy, results in all_clusters|dictsort %}
-            <div class="strategy--header">
-                <h1 id="{{ strategy }}">{{ strategy }}</h1>
-                <a href="#overview">to top</a>
-                <div class="meta">
-                    <a onclick="toggle_visibility('{{ strategy }}-source');">view source</a>
-                </div>
-            </div>
-            <div class="strategy-source" id="{{ strategy }}-source">
-                <pre>{{ sources[strategy] }}</pre>
-            </div>
+            <section class="overview" id="overview">
+                <h1>Overview</h1>
+                <p>Clustered {{ clusterables|length }} clusterables.</p>
+                <p>Expecting {{ expected|length }} clusters (<a href="#expected">view composition</a>).</p>
+            </section>
 
-            {% for threshold, clusters in results|dictsort %}
-                <section class="result" id="{{ strategy }}-{{ threshold }}">
-                    <div class="result--header" onclick="toggle_visibility('{{ strategy }}-{{ threshold }}-clusters');">
-                        <h3>Threshold: {{ threshold }}</h3>
-                        <a href="#overview">to top</a>
-                        <div class="meta">
-                            <span class="muted">Score:</span> {{ all_scores[strategy][threshold] }}
-                            <span class="muted">Clusters:</span> {{ clusters|length }}/<a href="#expected">{{ expected|length }}</a>
-                        </div>
-                    </div>
-
-                    <div class="clusters" id="{{ strategy }}-{{ threshold }}-clusters">
-                        {% for cluster in clusters %}
-                            <div class="cluster">
-                                {% for member in cluster %}
-                                    <p><a href="#{{ member.id }}">{{ member }}</a></p>
-                                {% endfor %}
+            <section class="results">
+                {% for result in results|sort(reverse=True, attribute='score.{0}'.format(metric)) %}
+                    <section class="result">
+                        <div class="result--header" onclick="toggle_visibility('{{ metric }}-{{ result.id }}');">
+                            <h3>{{ result.params }}</h3>
+                            <a href="#overview">to top</a>
+                            <div class="meta">
+                                <span class="muted">Score:</span> {{ result.score[metric] }}
+                                <span class="muted">Clusters:</span> {{ result.clusters|length }}/<a href="#expected">{{ expected|length }}</a>
                             </div>
-                        {% endfor %}
-                </section>
-            {% endfor %}
-        {% endfor %}
-    </section>
+                        </div>
+
+                        <div class="clusters" id="{{ metric }}-{{ result.id }}">
+                            {% for cluster in result.clusters %}
+                                <div class="cluster">
+                                    {% for member in cluster %}
+                                        <p><a href="#{{ member.id }}">{{ member.title }}</a></p>
+                                    {% endfor %}
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </section>
+                {% endfor %}
+            </section>
+        </section>
+    {% endfor %}
 
     <section class="expected" id="expected">
         <h2>Expected cluster composition</h2>
@@ -273,7 +261,7 @@
             {% for cluster in expected %}
                 <div class="cluster">
                     {% for member in cluster %}
-                        <p><a href="#{{ member.id }}">{{ member }}</a></p>
+                        <p><a href="#{{ member.id }}">{{ member.title }}</a></p>
                     {% endfor %}
                 </div>
             {% endfor %}
@@ -293,8 +281,8 @@
                 </div>
                 <div class="clusterable--body">
                     <ul class="clusterable--concepts" id="{{ clusterable.id }}-concepts">
-                        {% for slug in clusterable.concept_slugs|sort %}
-                            <li>{{ slug }}</li>
+                        {% for concept in clusterable.concepts|sort %}
+                            <li>{{ concept }}</li>
                         {% endfor %}
                     </ul>
                     <div class="clusterable--text" id="{{ clusterable.id }}-text">
@@ -313,6 +301,16 @@
             } else {
                 el.style.display = 'block';
             }
+        }
+
+        function show_tab(id) {
+            var el = document.getElementById(id),
+                els = document.getElementsByClassName('tab');
+
+            for (var i=0; i<els.length; i++) {
+                els[i].style.display = 'none';
+            }
+            el.style.display = 'block';
         }
     </script>
 
