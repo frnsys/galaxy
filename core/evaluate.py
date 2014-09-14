@@ -27,7 +27,6 @@ def evaluate(datapath):
 
     # Merge the BoW features and the concept features as an ndarray.
     vectors = hstack([coo_matrix(bow_vecs), coo_matrix(concept_vecs)]).A
-    #vectors = concept_vecs
     print('Using {0} features.'.format(vectors.shape[1]))
 
     param_grid = ParameterGrid({
@@ -75,6 +74,11 @@ def evaluate(datapath):
 
 
 def labels_to_lists(objs, labels):
+    """
+    Convert a list of objects
+    to be a list of lists arranged
+    according to a list of labels.
+    """
     tmp = {}
 
     for i, label in enumerate(labels):
@@ -83,6 +87,18 @@ def labels_to_lists(objs, labels):
         tmp[label].append(objs[i])
 
     return [v for v in tmp.values()]
+
+
+def changed_clusters(objs, old_labels, new_labels):
+    """
+    Returns which of the old clusters have changed.
+    """
+    old = labels_to_lists(objs, old_labels)
+    new = labels_to_lists(objs, new_labels)
+
+    for cluster in new:
+        if cluster not in old:
+            yield cluster
 
 
 def score(labels_true, labels_pred):
