@@ -1,8 +1,13 @@
+import os
 import json
 from random import random, randint
-from dateutil.parser import parse
 from datetime import datetime
 
+import numpy as np
+from scipy.sparse import coo_matrix, hstack
+from dateutil.parser import parse
+
+from core.util import progress
 from core.models import Article
 
 def load_articles(test_file, with_labels=True):
@@ -10,26 +15,57 @@ def load_articles(test_file, with_labels=True):
     with open(test_file, 'r') as file:
         data = json.load(file)
 
+    if with_labels:
+        articles, labels_true = process_labeled_articles(data)
+    else:
+        articles = [process_article(a) for a in data]
+
+    print('Loaded {0} articles.'.format(len(articles)))
+
+    # Check if a vectorized file already exists.
+    vecs_path = '/tmp/{0}.npy'.format(test_file.replace('/', '.'))
+    if os.path.exists(vecs_path):
+        print('Loading existing article vectors...')
+        vecs = np.load(vecs_path)
+    else:
+        vecs = build_vectors(articles)
+        np.save(vecs_path, vecs)
 
     if with_labels:
-        # Build articles and true labels.
-        articles, labels_true = [], []
-        for idx, cluster in enumerate(data):
-            members = []
-            for a in cluster['articles']:
-                article = process_article(a)
-                members.append(article)
-            articles += members
-            labels_true += [idx for i in range(len(members))]
-
-        print('Loaded {0} articles.'.format(len(articles)))
         print('Expecting {0} events.'.format(len(data)))
-        return articles, labels_true
+        return vecs, articles, labels_true
 
-    articles = [process_article(a) for a in data]
-    print('Loaded {0} articles.'.format(len(articles)))
-    return articles
+    return vecs, articles
 
+
+def build_vectors(articles):
+    bow_vecs, concept_vecs, pub_vecs, = [], [], []
+    for a in progress(articles, 'Building article vectors...'):
+        bow_vecs.append(a.vectors)
+        concept_vecs.append(a.concept_vectors)
+        pub_vecs.append(np.array([a.published]))
+    bow_vecs = np.array(bow_vecs)
+    concept_vecs = np.array(concept_vecs)
+    pub_vecs = np.array(pub_vecs)
+
+    # Merge the BoW features and the concept features as an ndarray.
+    print('Merging vectors...')
+    vectors = hstack([coo_matrix(pub_vecs), coo_matrix(bow_vecs), coo_matrix(concept_vecs)]).A
+    print('Using {0} features.'.format(vectors.shape[1]))
+
+    return vectors
+
+def process_labeled_articles(data):
+    # Build articles and true labels.
+    articles, labels_true = [], []
+    for idx, cluster in enumerate(data):
+        members = []
+        for a in cluster['articles']:
+            article = process_article(a)
+            members.append(article)
+        articles += members
+        labels_true += [idx for i in range(len(members))]
+    return articles, labels_true
 
 def process_article(a):
     a['id'] = hash(a['title'])

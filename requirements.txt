@@ -1,0 +1,11 @@
+Jinja2==2.7.3
+MarkupSafe==0.23
+click==3.3
+nltk==3.0.0
+numpy==1.9.0
+scikit-learn==0.15.2
+scipy==0.14.0
+pytz==2014.7
+
+bzr+https://code.launchpad.net/~dateutil/dateutil/trunk 
+git+git://github.com/ftzeng/pyner

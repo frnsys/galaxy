@@ -4,7 +4,6 @@ import webbrowser
 from datetime import datetime
 
 import numpy as np
-from scipy.sparse import coo_matrix, hstack
 from sklearn import metrics
 from sklearn.grid_search import ParameterGrid
 
@@ -12,26 +11,33 @@ from core.cluster import hac
 from core.util import progress
 from core.report import build_report
 from core.data import load_articles
+from core.distance import custom_dist
 
 METRICS = ['adjusted_rand', 'adjusted_mutual_info', 'completeness', 'homogeneity']
 
 def evaluate(datapath):
-    articles, labels_true = load_articles(datapath)
+    vectors, articles, labels_true = load_articles(datapath)
 
-    vectors = build_vectors(articles)
-
+    # A more extreme spread.
     #param_grid = ParameterGrid({
         #'metric': ['euclidean', 'cosine', 'jaccard'],
         #'linkage_method': ['average', 'weighted'],
         #'threshold': np.arange(0.1, 1.0, 0.05)
     #})
 
-    # Known best, from evaluating.
     param_grid = ParameterGrid({
-        'metric': ['cosine'],
+        'metric': [custom_dist],
+        #'metric': ['cosine'],
         'linkage_method': ['average'],
-        'threshold': [0.8]
+        'threshold': np.arange(0.0, 0.9, 0.05)
     })
+
+    # Known best, from evaluating.
+    #param_grid = ParameterGrid({
+        #'metric': ['cosine'],
+        #'linkage_method': ['average'],
+        #'threshold': [0.8]
+    #})
 
     results = []
 
@@ -67,12 +73,11 @@ def evaluate(datapath):
         'dataset': datapath,
         'date': now
     })
-    webbrowser.open('file://{0}'.format(report_path), new=2)
+    #webbrowser.open('file://{0}'.format(report_path), new=2)
 
 
 def test(datapath):
-    articles = load_articles(datapath, with_labels=False)
-    vectors = build_vectors(articles)
+    vectors, articles = load_articles(datapath, with_labels=False)
 
     import time
     start_time = time.time()
@@ -92,23 +97,7 @@ def test(datapath):
         'dataset': datapath,
         'date': now
     })
-    webbrowser.open('file://{0}'.format(report_path), new=2)
-
-
-def build_vectors(articles):
-    bow_vecs, concept_vecs = [], []
-    for a in progress(articles, 'Building article vectors...'):
-        bow_vecs.append(a.vectors)
-        concept_vecs.append(a.concept_vectors)
-    bow_vecs = np.array(bow_vecs)
-    concept_vecs = np.array(concept_vecs)
-
-    # Merge the BoW features and the concept features as an ndarray.
-    print('Merging vectors...')
-    vectors = hstack([coo_matrix(bow_vecs), coo_matrix(concept_vecs)]).A
-    print('Using {0} features.'.format(vectors.shape[1]))
-
-    return vectors
+    #webbrowser.open('file://{0}'.format(report_path), new=2)
 
 
 def labels_to_lists(objs, labels):

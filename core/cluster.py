@@ -4,9 +4,8 @@ from scipy import clip
 from scipy.spatial.distance import pdist, squareform
 from scipy.cluster.hierarchy import linkage, fcluster
 
-from sklearn.metrics.pairwise import pairwise_distances
-
 import numpy as np
+from sklearn.metrics.pairwise import pairwise_distances
 
 def hac(vecs, metric, linkage_method, threshold):
     """

@@ -1,5 +1,10 @@
+import pytz
+from datetime import datetime
+
 from core.vectorize import vectorize
 from core import concepts
+
+epoch = datetime.utcfromtimestamp(0).replace(tzinfo=pytz.UTC)
 
 class Article():
     def __init__(self, **kwargs):
@@ -25,3 +30,17 @@ class Article():
         if not hasattr(self, '_vectors'):
             self._vectors = vectorize(self.text)
         return self._vectors
+
+    @property
+    def published(self):
+        """Convert datetime to seconds"""
+
+        # If not timezone is set, assume UTC.
+        # super annoying and it's probably not a good guess but it's
+        # all we got for now.
+        # In production, we will be setting article publish times as utc when
+        # we fetch them, so it should be less of a problem there.
+        if self.created_at.tzinfo is None:
+            self.created_at = self.created_at.replace(tzinfo=pytz.UTC)
+        delta = self.created_at - epoch
+        return delta.total_seconds()
