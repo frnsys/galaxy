@@ -1,6 +1,6 @@
 #!/bin/bash
 
-ARGOS_ENV=~/env/argos_cluster
+ARGOS_ENV=/env/argos_cluster
 
 function setup_dependencies {
     echo -e "\n\n\n"

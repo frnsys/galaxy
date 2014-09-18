@@ -2,7 +2,7 @@ import sys
 import json
 
 from core.vectorize import train
-from core.evaluate import evaluate, test
+from eval import evaluate, test
 
 cmd = sys.argv[1]
 datapath = sys.argv[2]

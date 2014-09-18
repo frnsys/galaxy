@@ -5,14 +5,15 @@ from datetime import datetime
 
 import numpy as np
 from scipy.sparse import coo_matrix, hstack
+from sklearn.preprocessing import normalize
 from dateutil.parser import parse
 
-from core.util import progress
 from core.models import Article
+from eval.util import progress
 
-def load_articles(test_file, with_labels=True):
-    print('Loading articles from {0}...'.format(test_file))
-    with open(test_file, 'r') as file:
+def load_articles(datapath, with_labels=True):
+    print('Loading articles from {0}...'.format(datapath))
+    with open(datapath, 'r') as file:
         data = json.load(file)
 
     if with_labels:
@@ -22,38 +23,38 @@ def load_articles(test_file, with_labels=True):
 
     print('Loaded {0} articles.'.format(len(articles)))
 
-    # Check if a vectorized file already exists.
-    vecs_path = '/tmp/{0}.npy'.format(test_file.replace('/', '.'))
-    if os.path.exists(vecs_path):
-        print('Loading existing article vectors...')
-        vecs = np.load(vecs_path)
-    else:
-        vecs = build_vectors(articles)
-        np.save(vecs_path, vecs)
-
     if with_labels:
         print('Expecting {0} events.'.format(len(data)))
-        return vecs, articles, labels_true
+        return articles, labels_true
 
-    return vecs, articles
+    return articles
 
 
-def build_vectors(articles):
-    bow_vecs, concept_vecs, pub_vecs, = [], [], []
-    for a in progress(articles, 'Building article vectors...'):
-        bow_vecs.append(a.vectors)
-        concept_vecs.append(a.concept_vectors)
-        pub_vecs.append(np.array([a.published]))
-    bow_vecs = np.array(bow_vecs)
-    concept_vecs = np.array(concept_vecs)
-    pub_vecs = np.array(pub_vecs)
+def build_vectors(articles, datapath):
+    # Check if a raw vectors file already exists.
+    vecs_path = '/tmp/{0}.npy'.format(datapath.replace('/', '.'))
 
-    # Merge the BoW features and the concept features as an ndarray.
-    print('Merging vectors...')
-    vectors = hstack([coo_matrix(pub_vecs), coo_matrix(bow_vecs), coo_matrix(concept_vecs)]).A
-    print('Using {0} features.'.format(vectors.shape[1]))
+    if os.path.exists(vecs_path):
+        vecs = np.load(vecs_path)
 
-    return vectors
+    else:
+        bow_vecs, concept_vecs, pub_vecs, = [], [], []
+        for a in progress(articles, 'Building article vectors...'):
+            pub_vecs.append(np.array([a.published]))
+            bow_vecs.append(a.vectors)
+            concept_vecs.append(a.concept_vectors)
+
+        pub_vecs = normalize(np.array(pub_vecs))
+        bow_vecs = normalize(np.array(bow_vecs))
+        concept_vecs = normalize(np.array(concept_vecs))
+
+        print('Merging vectors...')
+        vecs = np.hstack([pub_vecs, bow_vecs, concept_vecs])
+        print('Using {0} features.'.format(vecs.shape[1]))
+        np.save(vecs_path, vecs)
+
+    return vecs
+
 
 def process_labeled_articles(data):
     # Build articles and true labels.

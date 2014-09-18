@@ -20,8 +20,14 @@ def hac(vecs, metric, linkage_method, threshold):
         # This returns the distance matrix in squareform,
         # we use squareform() to convert it to condensed form, which is what linkage() accepts.
         # n_jobs=-2 to use all cores except 1.
-        distance_matrix = pairwise_distances(vecs, metric=metric, n_jobs=-2)
-        distance_matrix = squareform(distance_matrix, checks=False)
+        #distance_matrix = pairwise_distances(vecs, metric=metric, n_jobs=-1)
+        #distance_matrix = squareform(distance_matrix, checks=False)
+
+        # Just using pdist for now because it seems way faster.
+        # Possible that the multicore gains aren't seen until you have many cores going.
+        # Also, pdist stores an array in memory that can be very huge, which is why
+        # memory constrains the core usage.
+        distance_matrix = pdist(vecs, metric=metric)
 
     else:
         distance_matrix = pdist(vecs, metric=metric)
