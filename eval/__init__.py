@@ -44,8 +44,9 @@ def evaluate(datapath):
     elapsed_time = time.time() - start_time
     print('Clustered in {0}'.format(elapsed_time))
 
-    results = score_results(results, labels_true, articles)
+    results, avgs = score_results(results, labels_true, articles)
     bests, lines = calculate_bests(results)
+    print('Average scores: {0}'.format(avgs))
 
     now = datetime.now()
     dataname = datapath.split('/')[-1].split('.')[0]
@@ -104,10 +105,19 @@ def cluster(vectors, pg):
 
 def score_results(results, labels_true, articles):
     articles_ = [Member(a.id, a.title) for a in articles]
+
+    avgs = {metric: [] for metric in METRICS}
     for result in results:
         result['score'] = score(labels_true, result['labels'])
         result['clusters'] = labels_to_lists(articles_, result['labels'])
-    return results
+
+        for metric, scr in result['score'].items():
+            avgs[metric].append(scr)
+
+    for metric, scrs in avgs.items():
+        avgs[metric] = sum(scrs)/len(scrs)
+
+    return results, avgs
 
 
 def weight_vectors(vecs, weights=[1,1,1]):
