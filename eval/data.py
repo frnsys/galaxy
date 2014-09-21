@@ -11,7 +11,7 @@ from dateutil.parser import parse
 from core.models import Article
 from eval.util import progress
 
-def load_articles(datapath, with_labels=True):
+def load_articles(datapath, with_labels=True, as_incremental=False):
     print('Loading articles from {0}...'.format(datapath))
     with open(datapath, 'r') as file:
         data = json.load(file)
@@ -22,6 +22,9 @@ def load_articles(datapath, with_labels=True):
         articles = [process_article(a) for a in data]
 
     print('Loaded {0} articles.'.format(len(articles)))
+
+    if as_incremental:
+        articles = split_list(articles)
 
     if with_labels:
         print('Expecting {0} events.'.format(len(data)))

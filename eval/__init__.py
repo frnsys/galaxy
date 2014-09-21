@@ -7,7 +7,8 @@ from sklearn import metrics
 from sklearn.grid_search import ParameterGrid
 
 from core.cluster import hac
-from eval.util import progress, labels_to_lists
+from core.util import labels_to_lists
+from eval.util import progress
 from eval.report import build_report
 from eval.data import load_articles, build_vectors
 from eval.parallel import parallelize
@@ -47,6 +48,7 @@ def evaluate(datapath):
     results, avgs = score_results(results, labels_true, articles)
     bests, lines = calculate_bests(results)
     print('Average scores: {0}'.format(avgs))
+    lines += '\n\n{0}'.format(avgs)
 
     now = datetime.now()
     dataname = datapath.split('/')[-1].split('.')[0]
