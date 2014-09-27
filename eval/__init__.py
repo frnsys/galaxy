@@ -157,7 +157,7 @@ def score(labels_true, labels_pred):
 
 def test(datapath):
     articles = load_articles(datapath, with_labels=False)
-    vectors = build_vectors(articles, datapath)
+    vectors = build_vectors(articles[:20], datapath)
 
     import time
     start_time = time.time()
@@ -167,7 +167,7 @@ def test(datapath):
     print('Clustered in {0}'.format(elapsed_time))
 
     clusters = labels_to_lists(articles, labels)
-
+    import ipdb; ipdb.set_trace()
     now = datetime.now()
     dataname = datapath.split('/')[-1].split('.')[0]
     filename = 'test_{0}_{1}'.format(dataname, now.isoformat())

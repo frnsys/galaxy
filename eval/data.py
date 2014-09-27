@@ -11,6 +11,7 @@ from dateutil.parser import parse
 from core.models import Article
 from eval.util import progress
 
+
 def load_articles(datapath, with_labels=True, as_incremental=False):
     print('Loading articles from {0}...'.format(datapath))
     with open(datapath, 'r') as file:
@@ -70,6 +71,7 @@ def process_labeled_articles(data):
         articles += members
         labels_true += [idx for i in range(len(members))]
     return articles, labels_true
+
 
 def process_article(a):
     a['id'] = hash(a['title'])
