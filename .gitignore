@@ -14,3 +14,6 @@ config.py
 bower/
 index.css
 *.pickle
+VENV/*
+data/*
+
