@@ -156,6 +156,9 @@ def score(labels_true, labels_pred):
 
 
 def test(datapath):
+    """
+    Test the clustering on a dataset that doesn't have labels.
+    """
     articles = load_articles(datapath, with_labels=False)
     vectors = build_vectors(articles, datapath)
 
@@ -171,9 +174,9 @@ def test(datapath):
     now = datetime.now()
     dataname = datapath.split('/')[-1].split('.')[0]
     filename = 'test_{0}_{1}'.format(dataname, now.isoformat())
-    report_path = build_report('test_report.html', filename, {
+    report_path = build_report(filename, {
         'clusterables': articles,
         'clusters': clusters,
         'dataset': datapath,
         'date': now
-    })
+    }, template='test_report.html')
