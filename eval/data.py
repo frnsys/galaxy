@@ -1,10 +1,10 @@
-import os
 import json
+import pickle
 from random import random, randint
 from datetime import datetime
 
 import numpy as np
-from scipy.sparse import coo_matrix, hstack
+from scipy.sparse import csr_matrix, hstack
 from sklearn.preprocessing import normalize
 from dateutil.parser import parse
 
@@ -33,30 +33,24 @@ def load_articles(datapath, with_labels=True, as_incremental=False):
     return articles
 
 
-def build_vectors(articles, datapath):
-    # Check if a raw vectors file already exists.
-    vecs_path = '/tmp/{0}.npy'.format(datapath.replace('/', '.'))
+def build_vectors(articles, savepath):
+    bow_vecs, concept_vecs, pub_vecs, = [], [], []
 
-    if os.path.exists(vecs_path):
-        vecs = np.load(vecs_path)
+    for a in progress(articles, 'Building article vectors...'):
+        pub_vecs.append(np.array([a.published]))
+        bow_vecs.append(a.vectors)
+        concept_vecs.append(a.concept_vectors)
 
-    else:
-        bow_vecs, concept_vecs, pub_vecs, = [], [], []
-        for a in progress(articles, 'Building article vectors...'):
-            pub_vecs.append(np.array([a.published]))
-            bow_vecs.append(a.vectors)
-            concept_vecs.append(a.concept_vectors)
+    pub_vecs = normalize(csr_matrix(pub_vecs), copy=False)
+    bow_vecs = normalize(csr_matrix(bow_vecs), copy=False)
+    concept_vecs = normalize(csr_matrix(concept_vecs), copy=False)
 
-        pub_vecs = normalize(np.array(pub_vecs))
-        bow_vecs = normalize(np.array(bow_vecs))
-        concept_vecs = normalize(np.array(concept_vecs))
+    print('Merging vectors...')
+    vecs = hstack([pub_vecs, bow_vecs, concept_vecs])
+    print('Using {0} features.'.format(vecs.shape[1]))
 
-        print('Merging vectors...')
-        vecs = np.hstack([pub_vecs, bow_vecs, concept_vecs])
-        print('Using {0} features.'.format(vecs.shape[1]))
-        np.save(vecs_path, vecs)
-
-    return vecs
+    with open(savepath, 'wb') as f:
+        pickle.dump(vecs, f)
 
 
 def process_labeled_articles(data):
@@ -70,6 +64,7 @@ def process_labeled_articles(data):
         articles += members
         labels_true += [idx for i in range(len(members))]
     return articles, labels_true
+
 
 def process_article(a):
     a['id'] = hash(a['title'])
