@@ -28,19 +28,19 @@ def evaluate(datapath):
         build_vectors(articles, vecs_path)
 
 
-    #param_grid = ParameterGrid({
-        #'metric': ['cosine'],
-        #'linkage_method': ['average'],
-        #'threshold': np.arange(0.1, 1.0, 0.05),
-        #'weights': list( permutations(np.arange(1., 100., 20.), 3) )
-    #})
-
     param_grid = ParameterGrid({
         'metric': ['cosine'],
         'linkage_method': ['average'],
-        'threshold': [0.8],
-        'weights': [[1,1,1]]
+        'threshold': np.arange(0.1, 1.0, 0.05),
+        'weights': list( permutations(np.arange(1., 100., 20.), 3) )
     })
+
+    #param_grid = ParameterGrid({
+        #'metric': ['cosine'],
+        #'linkage_method': ['average'],
+        #'threshold': [0.8],
+        #'weights': [[1,1,1]]
+    #})
 
     # Not working right now, need more memory. scipy's pdist stores an array in memory
     # which craps out parallelization cause there's not enough memory to go around.
