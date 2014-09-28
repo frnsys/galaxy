@@ -1,3 +1,5 @@
+import os
+import pickle
 from datetime import datetime
 from itertools import permutations
 from collections import namedtuple
@@ -19,7 +21,12 @@ Member = namedtuple('Member', ['id', 'title'])
 
 def evaluate(datapath):
     articles, labels_true = load_articles(datapath)
-    vectors = build_vectors(articles, datapath)
+
+    # Build the vectors if they do not exist.
+    vecs_path = '/tmp/{0}.pickle'.format(datapath.replace('/', '.'))
+    if not os.path.exists(vecs_path):
+        build_vectors(articles, vecs_path)
+
 
     param_grid = ParameterGrid({
         'metric': ['cosine'],
@@ -27,6 +34,13 @@ def evaluate(datapath):
         'threshold': np.arange(0.1, 1.0, 0.05),
         'weights': list( permutations(np.arange(1., 100., 20.), 3) )
     })
+
+    #param_grid = ParameterGrid({
+        #'metric': ['cosine'],
+        #'linkage_method': ['average'],
+        #'threshold': [0.8],
+        #'weights': [[1,1,1]]
+    #})
 
     # Not working right now, need more memory. scipy's pdist stores an array in memory
     # which craps out parallelization cause there's not enough memory to go around.
@@ -39,7 +53,7 @@ def evaluate(datapath):
 
     results = []
     for pg in progress(param_grid, 'Running {0} parameter combos...'.format(len(param_grid))):
-        result = cluster(vectors, pg)
+        result = cluster(vecs_path, pg)
         results.append(result)
 
     elapsed_time = time.time() - start_time
@@ -89,10 +103,16 @@ def cluster_p(vectors, pg_set):
     return [cluster(vectors, pg) for pg in pg_set]
 
 
-def cluster(vectors, pg):
+def cluster(filepath, pg):
     pg_ = pg.copy()
 
-    vecs = weight_vectors(vectors, weights=pg_['weights'])
+    # Reload the original vectors, so when we weigh them we can just
+    # modify these vectors without copying them (to save memory).
+    with open(filepath, 'rb') as f:
+        vecs = pickle.load(f)
+
+    vecs = weight_vectors(vecs, weights=pg_['weights'])
+
     pg_.pop('weights', None)
 
     labels_pred = hac(vecs, **pg_)
@@ -122,8 +142,9 @@ def score_results(results, labels_true, articles):
     return results, avgs
 
 
-def weight_vectors(vecs, weights=[1,1,1]):
-    v = np.copy(vecs)
+def weight_vectors(v, weights):
+    # Convert to a scipy.sparse.lil_matrix because it is subscriptable.
+    v = v.tolil()
 
     # Apply weights to the proper columns:
     # col 0 = pub, cols 1-101 = bow, 102+ = concepts
@@ -156,6 +177,11 @@ def score(labels_true, labels_pred):
 
 
 def test(datapath):
+    """
+    Test the clustering on a dataset that doesn't have labels.
+
+    TO DO: this needs to be updated.
+    """
     articles = load_articles(datapath, with_labels=False)
     vectors = build_vectors(articles[:20], datapath)
 
@@ -171,9 +197,9 @@ def test(datapath):
     now = datetime.now()
     dataname = datapath.split('/')[-1].split('.')[0]
     filename = 'test_{0}_{1}'.format(dataname, now.isoformat())
-    report_path = build_report('test_report.html', filename, {
+    report_path = build_report(filename, {
         'clusterables': articles,
         'clusters': clusters,
         'dataset': datapath,
         'date': now
-    })
+    }, template='test_report.html')

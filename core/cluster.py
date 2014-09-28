@@ -12,26 +12,32 @@ from .ihacluster import IHAClusterer
 def hac(vecs, metric, linkage_method, threshold):
     """
     Hierarchical Agglomerative Clustering.
+
+    `scipy.spatial.distance.pdist` seemed to perform
+    quite a bit faster than `sklearn.metrics.pairwise.pairwise_distances`
+    when they both operated as a single process. `pdist`, however, does not
+    accept sparse matrices as inputs (as of scipy v0.15.2), so there can be
+    quite a bit memory cost when using it.
+
+    `pairwise_distances` does accept sparse matrices and has built-in
+    support for parallelization (with the `n_jobs` param). Because it can
+    have a significantly lower memory footprint, it seems better to use
+    that as a multicore job.
     """
 
-    if platform != 'darwin':
+    if platform == 'darwin':
         # This breaks on OSX 10.9.4, py3.3+, with large arrays:
         # https://stackoverflow.com/questions/11662960/ioerror-errno-22-invalid-argument-when-reading-writing-large-bytestring
         # https://github.com/numpy/numpy/issues/3858
-
-        # This returns the distance matrix in squareform,
-        # we use squareform() to convert it to condensed form, which is what linkage() accepts.
-        # n_jobs=-2 to use all cores except 1.
-        #distance_matrix = pairwise_distances(vecs, metric=metric, n_jobs=-1)
-        #distance_matrix = squareform(distance_matrix, checks=False)
-
-        # Just using pdist for now because it seems way faster.
-        # Possible that the multicore gains aren't seen until you have many cores going.
-        # Also, pdist stores an array in memory that can be very huge, which is why
-        # memory constrains the core usage.
-        distance_matrix = pdist(vecs, metric=metric)
+        # So for OSX ('darwin'), just running it as a single job.
+        distance_matrix = pairwise_distances(vecs, metric=metric, n_jobs=1)
     else:
-        distance_matrix = pdist(vecs, metric=metric)
+        # n_jobs=-1 to use all cores, n_jobs=-2 to use all cores except 1, etc.
+        distance_matrix = pairwise_distances(vecs, metric=metric, n_jobs=-2)
+
+    # `pairwise_distances` returns the distance matrix in squareform,
+    # we use `squareform()` to convert it to condensed form, which is what `linkage()` accepts.
+    distance_matrix = squareform(distance_matrix, checks=False)
 
     linkage_matrix = linkage(distance_matrix, method=linkage_method, metric=metric)
 

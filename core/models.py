@@ -20,16 +20,14 @@ class Article():
 
     @property
     def concept_vectors(self):
-        if not hasattr(self, '_concept_vectors'):
-            concept_doc = ' '.join(self.concepts)
-            self._concept_vectors = concepts.vectorize(concept_doc)
-        return self._concept_vectors
+        # Calculating these on the fly and not
+        # caching the results because caching eats up a lot of memory.
+        concept_doc = ' '.join(self.concepts)
+        return concepts.vectorize(concept_doc)
 
     @property
     def vectors(self):
-        if not hasattr(self, '_vectors'):
-            self._vectors = vectorize(self.text)
-        return self._vectors
+        return vectorize(self.text)
 
     @property
     def published(self):
