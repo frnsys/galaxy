@@ -1,3 +1,5 @@
+import os
+import pickle
 from datetime import datetime
 from itertools import permutations
 from collections import namedtuple
@@ -19,7 +21,12 @@ Member = namedtuple('Member', ['id', 'title'])
 
 def evaluate(datapath):
     articles, labels_true = load_articles(datapath)
-    vectors = build_vectors(articles, datapath)
+
+    # Build the vectors if they do not exist.
+    vecs_path = '/tmp/{0}.pickle'.format(datapath.replace('/', '.'))
+    if not os.path.exists(vecs_path):
+        build_vectors(articles, vecs_path)
+
 
     #param_grid = ParameterGrid({
         #'metric': ['cosine'],
@@ -46,7 +53,7 @@ def evaluate(datapath):
 
     results = []
     for pg in progress(param_grid, 'Running {0} parameter combos...'.format(len(param_grid))):
-        result = cluster(vectors, pg)
+        result = cluster(vecs_path, pg)
         results.append(result)
 
     elapsed_time = time.time() - start_time
@@ -96,10 +103,16 @@ def cluster_p(vectors, pg_set):
     return [cluster(vectors, pg) for pg in pg_set]
 
 
-def cluster(vectors, pg):
+def cluster(filepath, pg):
     pg_ = pg.copy()
 
-    vecs = weight_vectors(vectors, weights=pg_['weights'])
+    # Reload the original vectors, so when we weigh them we can just
+    # modify these vectors without copying them (to save memory).
+    with open(filepath, 'rb') as f:
+        vecs = pickle.load(f)
+
+    vecs = weight_vectors(vecs, weights=pg_['weights'])
+
     pg_.pop('weights', None)
 
     labels_pred = hac(vecs, **pg_)
@@ -129,12 +142,9 @@ def score_results(results, labels_true, articles):
     return results, avgs
 
 
-def weight_vectors(vecs, weights=[1,1,1]):
-    print(type(vecs))
-    #v = np.copy(vecs)
-    v = vecs.copy().todense()
-    print(type(v))
-    print(v.shape)
+def weight_vectors(v, weights):
+    # Convert to a scipy.sparse.lil_matrix because it is subscriptable.
+    v = v.tolil()
 
     # Apply weights to the proper columns:
     # col 0 = pub, cols 1-101 = bow, 102+ = concepts
@@ -169,6 +179,8 @@ def score(labels_true, labels_pred):
 def test(datapath):
     """
     Test the clustering on a dataset that doesn't have labels.
+
+    TO DO: this needs to be updated.
     """
     articles = load_articles(datapath, with_labels=False)
     vectors = build_vectors(articles, datapath)
