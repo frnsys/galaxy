@@ -21,11 +21,18 @@ def evaluate(datapath):
     articles, labels_true = load_articles(datapath)
     vectors = build_vectors(articles, datapath)
 
+    #param_grid = ParameterGrid({
+        #'metric': ['cosine'],
+        #'linkage_method': ['average'],
+        #'threshold': np.arange(0.1, 1.0, 0.05),
+        #'weights': list( permutations(np.arange(1., 100., 20.), 3) )
+    #})
+
     param_grid = ParameterGrid({
         'metric': ['cosine'],
         'linkage_method': ['average'],
-        'threshold': np.arange(0.1, 1.0, 0.05),
-        'weights': list( permutations(np.arange(1., 100., 20.), 3) )
+        'threshold': [0.8],
+        'weights': [[1,1,1]]
     })
 
     # Not working right now, need more memory. scipy's pdist stores an array in memory
@@ -123,7 +130,11 @@ def score_results(results, labels_true, articles):
 
 
 def weight_vectors(vecs, weights=[1,1,1]):
-    v = np.copy(vecs)
+    print(type(vecs))
+    #v = np.copy(vecs)
+    v = vecs.copy().todense()
+    print(type(v))
+    print(v.shape)
 
     # Apply weights to the proper columns:
     # col 0 = pub, cols 1-101 = bow, 102+ = concepts
