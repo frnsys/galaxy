@@ -116,6 +116,22 @@ class IHAClusterer(object):
         """
         pass
 
+    def ins_node(self, ni, nj):
+        pass
+
+    def ins_hierarchy(self, ni, nj):
+        pass
+
+    def demote(self, ni, nj):
+        pass
+
+    def merge(self, ni, nj):
+        pass
+
+    def split(self, theta, nk):
+        pass
+
+
 
 class Node(object):
     def __init__(self, vec=None, children=[], parent_index=None):
