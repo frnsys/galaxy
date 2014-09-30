@@ -19,6 +19,34 @@ class IHAClusterer(object):
         self.leaves = [] # Indices of leaf nodes
         self.distances = {} # A dictionary holding cluster center distances for pairs of  node indices
 
+    def get_distance(self, i, j):
+        if not (i, j) in self.distances:
+            ni = self.nodes[i]
+            nj = self.nodes[j]
+            distances[(i, j)] = distance(ni.center, nj.center)
+
+    def forms_lower_dense_region(self, a, c):
+        """
+        Let C be a homogenous cluster. 
+        Given a new point A, let B be a C‘s cluster member that is the nearest
+        neighbor to A. Let d be the distance from A to B. A (and B)
+        is said to form a lower dense region in C if d > U_L
+        """
+        b = None
+        pass
+
+    def forms_higher_dense_region(self, a, c):
+        """
+        Let C be a homogenous cluster. Given a new
+        point A, let B be a C‘s cluster member that is the nearest
+        neighbor to A. Let d be the distance from A to B. A (and B)
+        is said to form a higher dense region in C if d < L_L .
+        """
+        b = None
+        pass
+
+
+
     def incorporate(self, vec):
         if not self.nodes:
             self.nodes = [Node(vec)]
@@ -78,16 +106,49 @@ class IHAClusterer(object):
             # hierarchy restructuring
             self.restructure_hierarchy()
 
-
     def restructure_hierarchy(self, host_node):
         """Algorithm Hierarchy Restructuring
         """
-        # 1. Let crntNode be the node that accepts the new point.
-        # 2. While (crntN ode = ∅)
-        # 3. Let parentNode ← Parent(crntNode)
-        # 4. Recover the siblings of crntN ode that are misplaced.
-        # 5. Maintain the homogeneity of crntNode.
-        # 6. Let crntNode ← parentNode
+        current = host_node
+        while current:
+            parent = current.parent
+            # Recover the siblings of current that are misplaced.
+            # 
+            # One of the most common problems is that a node is
+            # stranded at an upper level cluster. In such a case,
+            #  a node N J , which is supposed to be a child node of N I,
+            #  is misplaced as N I ‘s sibling.
+            #
+            # A node N J , which is the sibling of N I , is said to be misplaced as
+            # N I ’s sibling if and only if N J does not form a lower dense
+            # region in N I .
+            #
+            # If such a problem is detected, we iteratively apply DEMOTE(N I , N J )
+            siblings = parent.children
+            misplaced = [s for s in siblings if not self.forms_lower_dense_region(s, current)]
+            for node in misplaced:
+                self.demote(current, node)
+
+            # 5. Maintain the homogeneity of crntNode.
+            self.repair_homogeneity(current)
+            current = parent
+    
+    def repair_homogeneity(self, node):
+        # Algorithm Homogeneity Maintenance(N )
+        # 1. Let an input N be the node that is being examined.
+        # 2. Repeat
+        # 3. Let N I and N J be the pair of neighbors among N ‘s
+        # child nodes with the smallest nearest distance.
+        # 4. If N I and N J form a higher dense region,
+        # 5. Then MERGE (N I , N J ) (see Figure 1d)
+        # 6. Until there is no higher dense region found in N during
+        # the last iteration.
+        # 7. Let M I and M J be the pair of neighbors among N ‘s
+        # child nodes with the largest nearest distance.
+        # 8. If M I and M J form a lower dense region in N ,
+        # 9. Then Let (N I , N J ) = SPLIT (Θ, N ). (see Figure 1e)
+        # 10. Call Homogeneity Maintenance(N I ).
+        # 11. Call Homogeneity Maintenance(N J ).
         pass
 
     def get_closest_leaf(self, vec):
@@ -139,13 +200,15 @@ class Node(object):
         self.children = children
         if children:
             self.center = scipy.mean([c.center for c in children])
-            # TODO get distances
+            # TODO: get distances
+            # a list of tuples (index of nearest sibling, distance)
             self.distances = []
 
+        self.index = None
         self.parent_index = parent_index
         self.mu = None
         self.sigma = None
-        # a list of tuples (index of nearest sibling, distance) 
+         
 
     def add_child(self, node):
         n = len(self.children)
