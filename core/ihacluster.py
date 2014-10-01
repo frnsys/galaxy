@@ -141,7 +141,7 @@ class Hierarchy(object):
 
     def resize(self):
         """
-            resize data structures to hold process
+            resize Node data structures to hold process
             a new batch of points
         """
         pass
@@ -160,7 +160,6 @@ class Hierarchy(object):
                 cleaf = leaf
 
         return leaf, mdist
-
 
     def incorporate(self, vec):
         new_node = Node(vec=vec)
@@ -222,21 +221,25 @@ class Hierarchy(object):
             current = parent
     
     def repair_homogeneity(self, node):
-        # Algorithm Homogeneity Maintenance(N )
-        # 1. Let an input N be the node that is being examined.
-        # 2. Repeat
-        # 3. Let N I and N J be the pair of neighbors among N ‘s
-        # child nodes with the smallest nearest distance.
-        # 4. If N I and N J form a higher dense region,
-        # 5. Then MERGE (N I , N J ) (see Figure 1d)
-        # 6. Until there is no higher dense region found in N during
-        # the last iteration.
-        # 7. Let M I and M J be the pair of neighbors among N ‘s
-        # child nodes with the largest nearest distance.
-        # 8. If M I and M J form a lower dense region in N ,
-        # 9. Then Let (N I , N J ) = SPLIT (Θ, N ). (see Figure 1e)
-        # 10. Call Homogeneity Maintenance(N I ).
-        # 11. Call Homogeneity Maintenance(N J ).
+        """
+            Algorithm Homogeneity Maintenance
+
+            # 1. Let an input N be the node that is being examined.
+            # 2. Repeat
+                # 3. Let N I and N J be the pair of neighbors among N ‘s
+                # child nodes with the smallest nearest distance.
+                # 4. If N I and N J form a higher dense region,
+                    # 5. Then MERGE (N I , N J ) (see Figure 1d)
+            # 6. Until there is no higher dense region found in N during
+            # the last iteration.
+            
+            # 7. Let M I and M J be the pair of neighbors among N ‘s
+            # child nodes with the largest nearest distance.
+            # 8. If M I and M J form a lower dense region in N ,
+                # 9. Then Let (N I , N J ) = SPLIT (Θ, N ). (see Figure 1e)
+                # 10. Call Homogeneity Maintenance(N I ).
+                # 11. Call Homogeneity Maintenance(N J ).
+        """
         pass
 
     def forms_lower_dense_region(self, a, c):
