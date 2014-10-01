@@ -165,6 +165,8 @@ class Hierarchy(object):
     def incorporate(self, vec):
         new_node = Node(vec=vec)
         self.leaves.append(new_node.id)
+        if self.root is None:
+            self.root = new_node
         if len(self.hierarchy.leaves) > 1:
             leaf, d = self.get_closest_leaf(new_node) 
             host = None
@@ -258,24 +260,26 @@ class Hierarchy(object):
         pass
 
 
-
     #
     # Restructuring operators
     #
     def ins_node(self, ni, nj):
         ni.add_child(nj)
 
-
     def ins_hierarchy(self, n, ni, nj):
         n.remove_child(ni)
         nk = Node(children=[ni, nj])
         n.add_child(nk)
 
-    def demote(self, ni, nj):
-        pass
+    def demote(self, n, ni, nj):
+        n.remove_child(nj)
+        ni.add_child(nj)
 
     def merge(self, ni, nj):
-        pass
+        n.remove_child(ni)
+        n.remove_child(nj)
+        nk = Node(children=[ni, nj])
+        n.add_child(nk)
 
     def split(self, theta, nk):
         pass
