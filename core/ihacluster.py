@@ -1,8 +1,8 @@
-import scipy
 from scipy import clip
 from scipy.spatial.distance import pdist, squareform, euclidean
 from scipy.cluster.hierarchy import linkage, fcluster
 
+import scipy
 import numpy as np
 from sklearn.metrics.pairwise import pairwise_distances
 
@@ -12,21 +12,122 @@ def distance(vec1, vec2):
     if DISTANCE == 'euclidean':
         return euclidean(vec1, vec2)
 
+class Node(object):
+    @classmethod
+    def init(cls, size):
+        cls.size = size
+        m_nodes = 2 * size - 1 # maximum number of nodes in the hierarchy        
+        cls.nodes = []  # a list that will hold all the nodes created
+        cls.distances = -1 * np.ones((m_nodes, m_nodes)) # A matrix to hold cluster center distances for pairs of node indices
 
-class IHAClusterer(object):
-    def __init__(self):
-        self.hierarchy = Hierarchy()
-
-    def fcluster(self, density_threshold=None):
+    def __init__(self, vec=None, children=[]):
         """
-            Creates flat clusters by pruning all clusters
-            with density higher than the given threshold
-            and taking the leaves of the resulting hierarchy
-
-            In case no density_threshold is given,
-            we use the average density accross the entire hierarchy
+            A new node is created by passing either:
+            - a vector point, in case of a leaf node
+            - a list of children, for a cluster node
         """
-        pass
+        Node.nodes.append(self)
+        self.id = len(Node.nodes) - 1
+        self.children = children
+        if children:
+            self.center = vec
+        else:
+            self.center = scipy.mean([c.center for c in children])
+            # ndp representation
+            if len(children) == 1:
+                self.ndp = [0]
+                self.mu = 0
+                self.sigma = 0
+            else:
+                ndists = []
+                self.ndp = [] # nearest sibling for each child
+                for i, ch in enumerate(children):
+                    dists = np.array([self.get_distance(ch, x) for x in children])
+                    dists[i] = np.inf # to avoid getting itself as nearest sibling
+                    j = np.argmin(dists)
+                    self.ndp.append(children[j])
+                    ndists.append(dists[j])
+                self.mu = scipy.mean(ndists)
+                self.sigma = scipy.std(ndists)
+
+    def add_child(self, node):
+        n = len(self.children)
+        self.center = ((self.center * n) + node.center) / (n + 1)
+        self.children.append(node)
+        # update distances to new center
+        for n in Node.nodes:
+            Node.get_distance(self, n, update=True)
+        # update ndp representation and find nearest sibling
+        # for new child node
+        ndists = []
+        ns = None
+        nsd = np.inf
+        for i, ch in enumerate(self.children[:-1]):
+            newd = Node.get_distance(ch, node)
+            if newd < Node.get_distance(ch, self.ndp[i]):
+                self.ndp[i] = node
+            ndists.append(Node.get_distance(ch, self.ndp[i]))
+            if newd < nsd:
+                nsd = newd
+                ns = ch
+        self.ndp.append(ns)
+        ndists.append(nsd)
+        self.mu = scipy.mean(ndists)
+        self.sigma = scipy.std(ndists)
+
+
+    def remove_child(self, child):
+        n = len(self.children)
+        self.center = ((self.center * n) - child.center) / (n - 1)
+        index = [ch.id for ch in self.children].index(child.id)
+        del self.children[index]
+        del self.ndp[index]
+        # update distances to new center
+        for n in Node.nodes:
+            Node.get_distance(self, n, update=True)
+        # update ndp representation
+        ndists = []
+        for i, ch in enumerate(self.children):
+            if self.ndp[i].id == child.id:
+                dists = np.array([self.get_distance(ch, x) for x in children])
+                dists[i] = np.inf # to avoid getting itself as nearest sibling
+                j = np.argmin(dists)
+                ns = self.children[j]
+                self.ndp[i] = ns
+            ndists.append(Node.get_distance(ch, ns))
+        self.mu = scipy.mean(ndists)
+        self.sigma = scipy.std(ndists)
+
+    def lower_limit(self):
+        n = len(self.children)
+        if n > 2:
+            return mu - sigma
+        else:
+            return (2.0 / 3) * self.distances[0][0]
+
+    def upper_limit(self):
+        n = len(self.children)
+        if n > 2:
+            return mu + sigma
+        else:
+            return 1.5 * self.distances[0][0]
+
+    #
+    # Distance functions
+    #
+    @staticmethod
+    def distance(ni, nj, update=False):
+        i, j = sorted((ni.id, nj.id))
+        current_dist = Node.distances[i, j]
+        if current_dist < 0 or (update and current_dist >= 0):
+            Node.distances[ni.id, nj.id] = distance(ni.center, nj.center)
+        return Node.distances[i, j]
+
+    def get_nearest_child(self, parent, node):
+        dists = np.array([self.get_distance(ch, node) for ch in parent.children])
+        i = np.argmin(dists)
+
+        return parent.children[i], dists[i]
 
 
 class Hierarchy(object):
@@ -34,10 +135,7 @@ class Hierarchy(object):
         """
             Size is the number of points we plan to cluster
         """
-        self.size
-        m_nodes = 2 * size - 1 # maximum number of nodes in the hierarchy
-        self.nodes = [None] * m_nodes  # a list that will hold all the nodes created
-        self.distances = -1 * np.ones((, 2 * size)) # A matrix holding cluster center distances for pairs of  node indices
+        self.size = size
         self.leaves = set() # Indices of leaf nodes
         self.root = None
 
@@ -47,9 +145,26 @@ class Hierarchy(object):
             a new batch of points
         """
         pass
+    
+    def get_closest_leaf(self, node):
+        """
+            returns closest leaf node and the distance to it
+        """
+        mdist = np.inf
+        cleaf = None
+        for i in self.leaves:
+            leaf = Node.nodes[i]
+            dist = self.get_distance(leaf, node)
+            if dist < mdist:
+                mdist = dist
+                cleaf = leaf
+
+        return leaf, mdist
+
 
     def incorporate(self, vec):
-        new_node = self.hierarchy.create_node(vec)
+        new_node = Node(vec=vec)
+        self.leaves.append(new_node.id)
         if len(self.hierarchy.leaves) > 1:
             leaf, d = self.get_closest_leaf(new_node) 
             host = None
@@ -66,14 +181,11 @@ class Hierarchy(object):
                     dist = None
                     for ch in node.children:
                         if self.forms_lower_dense_region(new_node, ch):
+                            host = nchild
                             break
-                            if dist is None or cdist < dist:
-                                dist = cdist
-                                host = ch
                     # then perform INS HIERARCHY (N I , N J ) 
                     # where N I is the child node of N closest to the new point N J .
-
-                    # QUESTION: is N I supposed to be chosen among those child nodes
+                    # QUESTION: or is N I supposed to be chosen among those child nodes
                     # for which N J forms a lower dense region?
                     if host:
                         self.ins_hierarchy(host, new_node)
@@ -84,9 +196,11 @@ class Hierarchy(object):
             self.restructure_hierarchy()
 
     def restructure_hierarchy(self, host_node):
-        """Algorithm Hierarchy Restructuring
-            starting on host_node, we traverse ancestors doing
+        """Algorithm Hierarchy Restructuring:
+            
+            Starting on host_node, we traverse ancestors doing
             the following:
+
             1. Recover the siblings of current that are misplaced.
                 (A node N J is misplaced as N I ’s sibling iff
                 N J does not form a lower dense region in N I )
@@ -123,32 +237,6 @@ class Hierarchy(object):
         # 11. Call Homogeneity Maintenance(N J ).
         pass
 
-    #
-    # Distance functions
-    #
-    def get_distance(self, ni, nj):
-        if self.distances[i, j] < 0:
-            self.distances[ni.id, nj.id] = distance(ni.center, nj.center)
-        return self.distances[i, j]
-
-    def get_closest_leaf(self, node):
-        """
-            returns closest leaf node and the distance to it
-        """
-        mdist = np.inf
-        cleaf = None
-        for i in self.leaves:
-            leaf = self.nodes[i]
-            dist = self.get_distance(leaf, node)
-            if dist < mdist:
-                mdist = dist
-                cleaf = leaf
-
-        return leaf, mdist
-
-    def get_nearest_child(self, parent, node):
-        return nchild, d
-
     def forms_lower_dense_region(self, a, c):
         """
         Let C be a homogenous cluster. 
@@ -175,12 +263,13 @@ class Hierarchy(object):
     # Restructuring operators
     #
     def ins_node(self, ni, nj):
-        # Mariano
-        pass
+        ni.add_child(nj)
 
-    def ins_hierarchy(self, ni, nj):
-        # Mariano
-        pass
+
+    def ins_hierarchy(self, n, ni, nj):
+        n.remove_child(ni)
+        nk = Node(children=[ni, nj])
+        n.add_child(nk)
 
     def demote(self, ni, nj):
         pass
@@ -192,44 +281,27 @@ class Hierarchy(object):
         pass
 
 
-class Node(object):
-    def __init__(self, vec=None, parent=None):
-        self.center = vec
-        self.children = children
-        if children:
-            self.center = scipy.mean([c.center for c in children])
-            # TODO: get distances
-            # a list of tuples (index of nearest sibling, distance)
-            self.distances = []
-        self.id = None
-        self.parent = parent
-        self.mu = None
-        self.sigma = None
-         
+class IHAClusterer(object):
+    def __init__(self, vecs):
+        Node.init(m_nodes)
+        self.hierarchy = Hierarchy(len(vecs))
 
-    def add_child(self, node):
-        n = len(self.children)
-        self.center = ((self.center * n) + node.center) / (n + 1)
-        # TODO: update distances
-        self.children.append(node)
+    def cluster(self):
+        for vec in vecs:
+            self.hierarchy.incorporate(vec)
 
-    def remove_child(self, index):
-        child = self.children[index]
-        n = len(self.children)
-        self.center = ((self.center * n) - child.center) / (n - 1)
-        # TODO: update distances
-        del self.children[index]
+        labels = fcluster(self.hierarchy)
 
-    def lower_limit(self):
-        n = len(self.children)
-        if n > 2:
-            return mu - sigma
-        else:
-            return (2.0 / 3) * self.distances[0][0]
+        return labels
 
-    def upper_limit(self):
-        n = len(self.children)
-        if n > 2:
-            return mu + sigma
-        else:
-            return 1.5 * self.distances[0][0]
+
+    def fcluster(hierarchy, density_threshold=None):
+        """
+            Creates flat clusters by pruning all clusters
+            with density higher than the given threshold
+            and taking the leaves of the resulting hierarchy
+
+            In case no density_threshold is given,
+            we use the average density accross the entire hierarchy
+        """
+        pass
