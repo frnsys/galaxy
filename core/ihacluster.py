@@ -35,20 +35,20 @@ class Node(object):
             self.center = scipy.mean([c.center for c in children])
             # ndp representation
             if len(children) == 1:
-                self.ndp = [0]
+                self.nsiblings = [0]
                 self.mu = 0
                 self.sigma = 0
             else:
-                ndists = []
-                self.ndp = [] # nearest sibling for each child
+                self.ndists = []
+                self.nsiblings = [] # nearest sibling for each child
                 for i, ch in enumerate(children):
                     dists = np.array([self.get_distance(ch, x) for x in children])
                     dists[i] = np.inf # to avoid getting itself as nearest sibling
                     j = np.argmin(dists)
-                    self.ndp.append(children[j])
-                    ndists.append(dists[j])
-                self.mu = scipy.mean(ndists)
-                self.sigma = scipy.std(ndists)
+                    self.nsiblings.append(children[j])
+                    self.ndists.append(dists[j])
+                self.mu = scipy.mean(self.ndists)
+                self.sigma = scipy.std(self.ndists)
 
     def add_child(self, node):
         n = len(self.children)
@@ -64,36 +64,35 @@ class Node(object):
         nsd = np.inf
         for i, ch in enumerate(self.children[:-1]):
             newd = Node.get_distance(ch, node)
-            if newd < Node.get_distance(ch, self.ndp[i]):
-                self.ndp[i] = node
-            ndists.append(Node.get_distance(ch, self.ndp[i]))
+            if newd < Node.get_distance(ch, self.nsiblings[i]):
+                self.nsiblings[i] = node
+            ndists.append(Node.get_distance(ch, self.nsiblings[i]))
             if newd < nsd:
                 nsd = newd
                 ns = ch
-        self.ndp.append(ns)
+        self.nsiblings.append(ns)
         ndists.append(nsd)
         self.mu = scipy.mean(ndists)
         self.sigma = scipy.std(ndists)
-
 
     def remove_child(self, child):
         n = len(self.children)
         self.center = ((self.center * n) - child.center) / (n - 1)
         index = [ch.id for ch in self.children].index(child.id)
         del self.children[index]
-        del self.ndp[index]
+        del self.nsiblings[index]
         # update distances to new center
         for n in Node.nodes:
             Node.get_distance(self, n, update=True)
         # update ndp representation
         ndists = []
         for i, ch in enumerate(self.children):
-            if self.ndp[i].id == child.id:
+            if self.nsiblings[i].id == child.id:
                 dists = np.array([self.get_distance(ch, x) for x in children])
                 dists[i] = np.inf # to avoid getting itself as nearest sibling
                 j = np.argmin(dists)
                 ns = self.children[j]
-                self.ndp[i] = ns
+                self.nsiblings[i] = ns
             ndists.append(Node.get_distance(ch, ns))
         self.mu = scipy.mean(ndists)
         self.sigma = scipy.std(ndists)
@@ -123,11 +122,36 @@ class Node(object):
             Node.distances[ni.id, nj.id] = distance(ni.center, nj.center)
         return Node.distances[i, j]
 
-    def get_nearest_child(self, parent, node):
-        dists = np.array([self.get_distance(ch, node) for ch in parent.children])
+    def get_nearest_child(self, node):
+        dists = np.array([Node.get_distance(ch, node) for ch in self.children])
         i = np.argmin(dists)
 
-        return parent.children[i], dists[i]
+        return self.children[i], dists[i]
+
+    def get_closest_children(self):
+        """
+            returns the pair of children having
+            the shortest nearest distance
+        """
+        i = argmin(self.ndists)
+        ni = self.children[i]
+        nj = self.nsiblings[i]
+        d = self.ndists[i]
+        return ni, nj, d
+
+    def get_farthest_children(self):
+        """
+            returns the pair of children having
+            the largest nearest distance
+        """
+        i = argmax(self.ndists)
+        mi = self.children[i]
+        mj = self.nsiblings[i]
+        d = self.ndists[i]
+        return mi, mj, d
+
+
+
 
 
 class Hierarchy(object):
@@ -175,22 +199,15 @@ class Hierarchy(object):
                 if d >= node.lower_limit() and d <= node.upper_limit():
                     self.ins_node(node, new_node)
                     host = node
-                elif d < node.lower_limit:
-                    # • if N J forms a higher dense region on N , 
-                    # and N J forms a lower dense region on at least one of N ‘s
-                    # child nodes 
-                    dist = None
+                elif d < node.lower_limit():
                     for ch in node.children:
                         if self.forms_lower_dense_region(new_node, ch):
                             host = nchild
                             break
-                    # then perform INS HIERARCHY (N I , N J ) 
-                    # where N I is the child node of N closest to the new point N J .
-                    # QUESTION: or is N I supposed to be chosen among those child nodes
-                    # for which N J forms a lower dense region?
                     if host:
                         self.ins_hierarchy(host, new_node)
-
+                node = node.parent
+            
             if host is None:
                 self.ins_hierarchy(self.root, new_node)
 
@@ -240,7 +257,20 @@ class Hierarchy(object):
                 # 10. Call Homogeneity Maintenance(N I ).
                 # 11. Call Homogeneity Maintenance(N J ).
         """
-        pass
+        finished = False
+        while not finished:
+            ni, nj, d = node.get_closest_children()
+            if d < n.lower_limit():
+                self.merge(ni, nj)
+            else:
+                finished = True
+        mi, mj, d = node.get_farthest_children()
+        if d > node.upper_limit():
+            # TODO: implement. figure out theta
+            ni, nj = self.split(node, mi, mj)
+            repair_homogeneity(ni)
+            repair_homogeneity(nj)
+        
 
     def forms_lower_dense_region(self, a, c):
         """
@@ -284,7 +314,15 @@ class Hierarchy(object):
         nk = Node(children=[ni, nj])
         n.add_child(nk)
 
-    def split(self, theta, nk):
+    def split(self, nk, mi, mj):
+        """
+            Performs the split operation over a node nk
+            by separating the nearest distance MST structure
+            removing the edge joining mi and mj
+
+            mi and mj must be children of nk and
+            form a nearest distance edge
+        """
         pass
 
 
