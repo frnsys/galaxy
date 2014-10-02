@@ -20,7 +20,7 @@ class Node(object):
         cls.nodes = []  # a list that will hold all the nodes created
         cls.distances = -1 * np.ones((m_nodes, m_nodes)) # A matrix to hold cluster center distances for pairs of node indices
 
-    def __init__(self, vec=None, children=[]):
+    def __init__(self, vec=None, children=[], ndists=[], nsiblings=[]):
         """
             A new node is created by passing either:
             - a vector point, in case of a leaf node
@@ -39,14 +39,18 @@ class Node(object):
                 self.mu = 0
                 self.sigma = 0
             else:
-                self.ndists = []
-                self.nsiblings = [] # nearest sibling for each child
-                for i, ch in enumerate(children):
-                    dists = np.array([self.get_distance(ch, x) for x in children])
-                    dists[i] = np.inf # to avoid getting itself as nearest sibling
-                    j = np.argmin(dists)
-                    self.nsiblings.append(children[j])
-                    self.ndists.append(dists[j])
+                if ndists: # in case of split, we reuse distances
+                    self.ndists = ndists
+                    self.nsiblings = nsiblings
+                else:
+                    self.ndists = []
+                    self.nsiblings = [] # nearest sibling for each child
+                    for i, ch in enumerate(children):
+                        dists = np.array([self.get_distance(ch, x) for x in children])
+                        dists[i] = np.inf # to avoid getting itself as nearest sibling
+                        j = np.argmin(dists)
+                        self.nsiblings.append(children[j])
+                        self.ndists.append(dists[j])
                 self.mu = scipy.mean(self.ndists)
                 self.sigma = scipy.std(self.ndists)
 
@@ -96,6 +100,46 @@ class Node(object):
             ndists.append(Node.get_distance(ch, ns))
         self.mu = scipy.mean(ndists)
         self.sigma = scipy.std(ndists)
+
+    def split_children(self, mi, mj):
+        """
+            mi and mj must be children of self 
+            connected by a nearest distance edge.
+            Children MST structure is broken in two
+            disjoint sets by removing the edge for mi and mj
+            and new clusters are formed on those sets
+        """
+        children_ids = [ch.id for ch in self.children]
+        i = children_ids.find(mi.id)
+        j = children_ids.find(mj.id)
+
+        partitions = {i: {i}, j: {j}}
+
+        for a, b in enumerate(self.nsiblings): # edges of mst
+            if not {a, b} == {i, j}
+                connected = False
+                for n, p in partitions.items():
+                    if a in p:
+                        p.add(b)
+                        if b in partitions:
+                            partitions[b].update(p)
+                            # TODO: complete or use networkx
+                        # merge b's partition into p
+                        connected = True
+                        break
+                    if b in p:
+                        p.add(a)
+                        connected = True
+                        # merge a's partition into b
+                        break
+                if not connected:
+                    partitions[a] = {a, b}
+        # create partitions si and sj
+
+        # create ndist and nsiblings for new partitions
+        
+        # create new nodes ni and nj with the split data
+
 
     def lower_limit(self):
         n = len(self.children)
@@ -323,7 +367,12 @@ class Hierarchy(object):
             mi and mj must be children of nk and
             form a nearest distance edge
         """
-        pass
+        ni, nj = nk.split_children(mi, mj)
+        n.remove_child(nk)
+        n.add_child(ni)
+        n.add_child(nj)
+        # TODO: implement delete
+        nk.delete()
 
 
 class IHAClusterer(object):
