@@ -5,6 +5,7 @@ from scipy.cluster.hierarchy import linkage, fcluster
 import scipy
 import numpy as np
 from sklearn.metrics.pairwise import pairwise_distances
+import networkx as nx
 
 DISTANCE = 'euclidean'
 
@@ -19,6 +20,10 @@ class Node(object):
         m_nodes = 2 * size - 1 # maximum number of nodes in the hierarchy        
         cls.nodes = []  # a list that will hold all the nodes created
         cls.distances = -1 * np.ones((m_nodes, m_nodes)) # A matrix to hold cluster center distances for pairs of node indices
+
+    @classmethod
+    def get(cls, id):
+        return cls.nodes[id]
 
     def __init__(self, vec=None, children=[], ndists=[], nsiblings=[]):
         """
@@ -109,37 +114,33 @@ class Node(object):
             disjoint sets by removing the edge for mi and mj
             and new clusters are formed on those sets
         """
-        children_ids = [ch.id for ch in self.children]
+        children_ids = np.array([ch.id for ch in self.children])
+        ndists = np.array(self.ndists)
+        nsiblings = np.array(self.nsiblings)
+
         i = children_ids.find(mi.id)
         j = children_ids.find(mj.id)
 
-        partitions = {i: {i}, j: {j}}
-
-        for a, b in enumerate(self.nsiblings): # edges of mst
-            if not {a, b} == {i, j}
-                connected = False
-                for n, p in partitions.items():
-                    if a in p:
-                        p.add(b)
-                        if b in partitions:
-                            partitions[b].update(p)
-                            # TODO: complete or use networkx
-                        # merge b's partition into p
-                        connected = True
-                        break
-                    if b in p:
-                        p.add(a)
-                        connected = True
-                        # merge a's partition into b
-                        break
-                if not connected:
-                    partitions[a] = {a, b}
-        # create partitions si and sj
+        # create partitions s1 and s2
+        graph = nx.Graph()
+        edges = list(enumerate(self.nsiblings))
+        G.add_edges_from(edges)
+        g.remove_edge(i, j)
+        s1, s2 = list(nx.connected_components(g))
 
         # create ndist and nsiblings for new partitions
-        
-        # create new nodes ni and nj with the split data
+        s1_nodes = [Node.get(id) for id in children_ids[s1]]
+        s2_nodes = [Node.get(id) for id in children_ids[s2]]
+        s1_ndists = ndists[s1]
+        s2_ndists = ndists[s2]
+        s1_nsiblings = [s1.find(i) for i in nsiblings[s1]]
+        s2_nsiblings = [s2.find(i) for i in nsiblings[s2]]
 
+        # create new nodes n1 and n2 with the split data
+        n1 = Node(children=s1_nodes, ndists=s1_ndists, nsiblings=s1_nsiblings)
+        n2 = Node(children=s2_nodes, ndists=s2_ndists, nsiblings=s2_nsiblings)
+
+        return n1, n2
 
     def lower_limit(self):
         n = len(self.children)
@@ -193,9 +194,6 @@ class Node(object):
         mj = self.nsiblings[i]
         d = self.ndists[i]
         return mi, mj, d
-
-
-
 
 
 class Hierarchy(object):
@@ -314,7 +312,6 @@ class Hierarchy(object):
             ni, nj = self.split(node, mi, mj)
             repair_homogeneity(ni)
             repair_homogeneity(nj)
-        
 
     def forms_lower_dense_region(self, a, c):
         """
@@ -367,10 +364,10 @@ class Hierarchy(object):
             mi and mj must be children of nk and
             form a nearest distance edge
         """
-        ni, nj = nk.split_children(mi, mj)
+        n1, n2 = nk.split_children(mi, mj)
         n.remove_child(nk)
-        n.add_child(ni)
-        n.add_child(nj)
+        n.add_child(n1)
+        n.add_child(n2)
         # TODO: implement delete
         nk.delete()
 
