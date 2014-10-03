@@ -230,17 +230,18 @@ class Hierarchy(object):
     def incorporate(self, vec):
         new_node = Node(vec=vec)
         self.leaves.append(new_node.id)
-        if self.root is None:
-            self.root = new_node
-        if len(self.hierarchy.leaves) > 1:
+        if self.root is None: # first cluster contains the new point
+            first_cluster = Node(children=[new_node])
+            self.root = first_cluster
+        else:
             leaf, d = self.get_closest_leaf(new_node) 
             host = None
             node = leaf.parent
             while node and host is None:
                 nchild, d = node.get_nearest_child(new_node)
                 if d >= node.lower_limit() and d <= node.upper_limit():
-                    self.ins_node(node, new_node)
                     host = node
+                    self.ins_node(node, new_node)
                 elif d < node.lower_limit():
                     for ch in node.children:
                         if self.forms_lower_dense_region(new_node, ch):
@@ -320,8 +321,8 @@ class Hierarchy(object):
         neighbor to A. Let d be the distance from A to B. A (and B)
         is said to form a lower dense region in C if d > U_L
         """
-        b = None
-        pass
+        d, nearest_child = c.get_nearest_child(a)
+        return d > a.upper_limit() 
 
     def forms_higher_dense_region(self, a, c):
         """
@@ -332,6 +333,9 @@ class Hierarchy(object):
         """
         b = None
         pass
+        d, nearest_child = c.get_nearest_child(a)
+        return d < a.lower_limit() 
+
 
 
     #
