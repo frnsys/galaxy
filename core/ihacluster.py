@@ -41,6 +41,7 @@ class Node(object):
             self.initialize_ndp(children, ndists, nsiblings)
 
     def initialize_ndp(self, children, ndists=[], siblings=[]):
+        self.children = children
         for ch in children:
             ch.parent = self
         self.center = scipy.mean([c.center for c in children], axis=0)
@@ -241,6 +242,19 @@ class Hierarchy(object):
         """
         pass
 
+    def get_cluster_points(self, node):
+        """
+        Returns all the points inside the cluster represented
+        by the given node. That is, the centers of the descendant leaf nodes
+        """
+        if node.id in self.leaves:
+            return [node.center]
+        else:
+            points = []
+            for ch in node.children:
+                points += self.get_cluster_points(ch)
+            return points
+
     def get_closest_leaf(self, node):
         """
             returns closest leaf node and the distance to it
@@ -378,23 +392,22 @@ class Hierarchy(object):
         ni.add_child(nj)
 
     def ins_hierarchy(self, ni, nj):
-        n = ni.parent
-        n.remove_child(ni)
+        nn = ni.parent
+        nn.remove_child(ni)
         nk = Node(children=[ni, nj])
-        n.add_child(nk)
+        nn.add_child(nk)
 
     def demote(self, ni, nj):
-        n = ni.parent
-        n.remove_child(nj)
+        nn = ni.parent
+        nn.remove_child(nj)
         ni.add_child(nj)
 
     def merge(self, ni, nj):
-        n = ni.parent
-        n.remove_child(ni)
-        n.remove_child(nj)
+        nn = ni.parent
+        nn.remove_child(ni)
+        nn.remove_child(nj)
         nk = Node(children=[ni, nj])
-
-        n.add_child(nk)
+        nn.add_child(nk)
 
     def split(self, nk, mi, mj):
         """
@@ -405,10 +418,11 @@ class Hierarchy(object):
             mi and mj must be children of nk and
             form a nearest distance edge
         """
+        nn = nk.parent
         n1, n2 = nk.split_children(mi, mj)
-        n.remove_child(nk)
-        n.add_child(n1)
-        n.add_child(n2)
+        nn.remove_child(nk)
+        nn.add_child(n1)
+        nn.add_child(n2)
         # TODO: implement delete
         nk.delete()
 
@@ -430,9 +444,18 @@ class IHAClusterer(object):
         return labels
 
 
+
+
+# Test code
 def create_2_1dim_clusters():
     cluster_a = np.arange(0,1,0.1)
     cluster_b = np.arange(2,3,0.1)
+    print("Created clusters:\n")
+    print("A: ")
+    print(cluster_a)
+    print("\nB: ")
+    print(cluster_b)
+
     points = np.append(cluster_a, cluster_b)
     np.random.shuffle(points)
     points = [np.array([p]) for p in points]
@@ -442,14 +465,23 @@ def create_2_1dim_clusters():
 def test_2_clusters_1_dimension():
     # create sample data
     points = create_2_1dim_clusters()
-    
     # apply clustering
     clusterer = IHAClusterer(points)
-
     clusterer.cluster()
-
     return clusterer
 
 
 if __name__ == '__main__':
-    test_2_clusters_1_dimension()
+    clusterer = test_2_clusters_1_dimension()
+    root = clusterer.hierarchy.root
+    top = root.children[0]
+    hi = clusterer.hierarchy
+    second = top.children
+    cluster_a = hi.get_cluster_points(second[0])
+    cluster_b = hi.get_cluster_points(second[1])
+
+    print("Found clusters:\n")
+    print("A: ")
+    print(cluster_a)
+    print("\nB: ")
+    print(cluster_b)
