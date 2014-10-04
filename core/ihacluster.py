@@ -40,14 +40,14 @@ class Node(object):
         else:
             self.initialize_ndp(children, ndists, nsiblings)
 
-    def initialize_ndp(self, children, ndists=[], siblings=[]):
+    def initialize_ndp(self, children, ndists=[], nsiblings=[]):
         self.children = children
         for ch in children:
             ch.parent = self
         self.center = scipy.mean([c.center for c in children], axis=0)
         # ndp representation
         if len(children) == 1:
-            self.nsiblings = [0]
+            self.nsiblings = []
             self.mu = 0
             self.sigma = 0
         else:
@@ -67,34 +67,33 @@ class Node(object):
             self.sigma = scipy.std(self.ndists)
 
 
-    def add_child(self, node):
+    def add_child(self, new_child):
         n = len(self.children)
         if n < 2:
-            self.initialize_ndp(self.children + [node])
+            self.initialize_ndp(self.children + [new_child])
         else:
-            self.center = ((self.center * n) + node.center) / (n + 1)
-            self.children.append(node)
-            node.parent = self
+            self.center = ((self.center * n) + new_child.center) / (n + 1)
+            self.children.append(new_child)
+            new_child.parent = self
             # update distances to new center
             for n in Node.nodes:
                 Node.get_distance(self, n, update=True)
             # update ndp representation and find nearest sibling
-            # for new child node
-            ndists = []
+            # for new child new_child
             ns = None
-            nsd = np.inf
+            ns_dist = np.inf
             for i, ch in enumerate(self.children[:-1]):
-                newd = Node.get_distance(ch, node)
-                if newd < Node.get_distance(ch, self.nsiblings[i]):
-                    self.nsiblings[i] = node
-                ndists.append(Node.get_distance(ch, self.nsiblings[i]))
-                if newd < nsd:
-                    nsd = newd
+                newd = Node.get_distance(ch, new_child)
+                if newd < self.ndists[i]:
+                    self.nsiblings[i] = new_child
+                    self.ndists[i] = newd
+                if newd < ns_dist:
+                    ns_dist = newd
                     ns = ch
             self.nsiblings.append(ns)
-            ndists.append(nsd)
-            self.mu = scipy.mean(ndists)
-            self.sigma = scipy.std(ndists)
+            self.ndists.append(ns_dist)
+            self.mu = scipy.mean(self.ndists)
+            self.sigma = scipy.std(self.ndists)
 
     def remove_child(self, child):
         n = len(self.children)
@@ -107,17 +106,16 @@ class Node(object):
             for n in Node.nodes:
                 Node.get_distance(self, n, update=True)
             # update ndp representation
-            ndists = []
             for i, ch in enumerate(self.children):
                 if self.nsiblings[i].id == child.id:
-                    dists = np.array([Node.get_distance(ch, x) for x in children])
+                    dists = np.array([Node.get_distance(ch, x) for x in self.children])
                     dists[i] = np.inf # to avoid getting itself as nearest sibling
                     j = np.argmin(dists)
                     ns = self.children[j]
                     self.nsiblings[i] = ns
-                ndists.append(Node.get_distance(ch, ns))
-            self.mu = scipy.mean(ndists)
-            self.sigma = scipy.std(ndists)
+                    self.ndists[i] = dists[j]
+            self.mu = scipy.mean(self.ndists)
+            self.sigma = scipy.std(self.ndists)
         else:
             self.children = []
             self.ndists = []
@@ -131,47 +129,58 @@ class Node(object):
             disjoint sets by removing the edge for mi and mj
             and new clusters are formed on those sets
         """
-        children_ids = np.array([ch.id for ch in self.children])
-        ndists = np.array(self.ndists)
-        nsiblings = np.array(self.nsiblings)
-
-        i = children_ids.find(mi.id)
-        j = children_ids.find(mj.id)
+        children_ids = [ch.id for ch in self.children]
+        nsibling_ids = [ns.id for ns in self.nsiblings]
+        ndists_by_id = {ch.id: self.ndists[i] for i, ch in enumerate(self.children)}
+        nsibling_ids_by_id = {ch.id: nsibling_ids[i] for i, ch in enumerate(self.children)}
 
         # create partitions s1 and s2
+        edges = list(zip(children_ids, nsibling_ids))        
         graph = nx.Graph()
-        edges = list(enumerate(self.nsiblings))
-        G.add_edges_from(edges)
-        g.remove_edge(i, j)
-        s1, s2 = list(nx.connected_components(g))
+        graph.add_edges_from(edges)
+        graph.remove_edge(mi.id, mj.id)
+        s1_ids, s2_ids = list(nx.connected_components(graph))
+        if mi.id in s1_ids:
+            si_ids, sj_ids = s1_ids, s2_ids
+        else:
+            si_ids, sj_ids = s2_ids, s1_ids
 
+        # mi and mj could have their nearest sibling changed in
+        # new clusters, so we add them separately
+        si_ids.remove(mi.id)
+        sj_ids.remove(mj.id)
         # create ndist and nsiblings for new partitions
-        s1_nodes = [Node.get(id) for id in children_ids[s1]]
-        s2_nodes = [Node.get(id) for id in children_ids[s2]]
-        s1_ndists = ndists[s1]
-        s2_ndists = ndists[s2]
-        s1_nsiblings = [s1.find(i) for i in nsiblings[s1]]
-        s2_nsiblings = [s2.find(i) for i in nsiblings[s2]]
+        si_nodes = [Node.get(id) for id in si_ids]
+        sj_nodes = [Node.get(id) for id in sj_ids]
+        
+        si_ndists = [ndists_by_id[id] for id in si_ids]
+        sj_ndists = [ndists_by_id[id] for id in sj_ids]
+
+        si_nsiblings = [Node.get(nsibling_ids_by_id[id]) for id in si_ids]
+        sj_nsiblings = [Node.get(nsibling_ids_by_id[id]) for id in sj_ids]
 
         # create new nodes n1 and n2 with the split data
-        n1 = Node(children=s1_nodes, ndists=s1_ndists, nsiblings=s1_nsiblings)
-        n2 = Node(children=s2_nodes, ndists=s2_ndists, nsiblings=s2_nsiblings)
+        ni = Node(children=si_nodes, ndists=si_ndists, nsiblings=si_nsiblings)
+        ni.add_child(mi)
+        nj = Node(children=sj_nodes, ndists=sj_ndists, nsiblings=sj_nsiblings)
+        nj.add_child(mj)
 
-        return n1, n2
+        import ipdb; ipdb.set_trace()
+        return ni, nj
 
     def lower_limit(self):
         n = len(self.children)
         if n > 2:
-            return mu - sigma
+            return self.mu - self.sigma
         else:
-            return (2.0 / 3) * self.distances[0][0]
+            return (2.0 / 3) * self.ndists[0]
 
     def upper_limit(self):
         n = len(self.children)
         if n > 2:
-            return mu + sigma
+            return self.mu + self.sigma
         else:
-            return 1.5 * self.distances[0][0]
+            return 1.5 * self.ndists[0]
 
     def is_root(self):
         return self.parent is None                
@@ -197,7 +206,7 @@ class Node(object):
             returns the pair of children having
             the shortest nearest distance
         """
-        i = argmin(self.ndists)
+        i = np.argmin(self.ndists)
         ni = self.children[i]
         nj = self.nsiblings[i]
         d = self.ndists[i]
@@ -208,7 +217,7 @@ class Node(object):
             returns the pair of children having
             the largest nearest distance
         """
-        i = argmax(self.ndists)
+        i = np.argmax(self.ndists)
         mi = self.children[i]
         mj = self.nsiblings[i]
         d = self.ndists[i]
@@ -280,6 +289,7 @@ class Hierarchy(object):
             host = None
             node = leaf
             while not node.parent.is_root() and host is None:
+                print("A")
                 node = node.parent
                 nchild, d = node.get_nearest_child(new_node)
                 if d >= node.lower_limit() and d <= node.upper_limit():
@@ -293,13 +303,14 @@ class Hierarchy(object):
                     if host:
                         self.ins_hierarchy(host, new_node)
             
-            if host is None: # node is top level cluster
-                self.ins_hierarchy(node, new_node)
-            else:
-                # TODO: make sure the no restructuring is required in case of top level insertion
+            print("host search finished")
+            if host is not None: # node is top level cluster
+                print("host found")
                 self.restructure_hierarchy(host)
-
-
+            else:
+                # TODO: make sure the no restructuring is required in case of top level insertion                
+                print("host not found")
+                self.ins_hierarchy(node, new_node)
         self.leaves.add(new_node.id)
 
 
@@ -319,10 +330,11 @@ class Hierarchy(object):
         current = host_node
         while current:
             parent = current.parent
-            siblings = parent.children
-            misplaced = [s for s in siblings if not self.forms_lower_dense_region(s, current)]
-            for node in misplaced:
-                self.demote(current, node)
+            if not current.is_root():
+                siblings = parent.children
+                misplaced = [s for s in siblings if not self.forms_lower_dense_region(s, current)]
+                for node in misplaced:
+                    self.demote(current, node)
 
             self.repair_homogeneity(current)
             current = parent
@@ -349,17 +361,20 @@ class Hierarchy(object):
         """
         finished = False
         while not finished:
-            ni, nj, d = node.get_closest_children()
-            if d < n.lower_limit():
-                self.merge(ni, nj)
-            else:
+            if len(node.children) < 2:
                 finished = True
-        mi, mj, d = node.get_farthest_children()
-        if d > node.upper_limit():
-            # TODO: implement. figure out theta
-            ni, nj = self.split(node, mi, mj)
-            repair_homogeneity(ni)
-            repair_homogeneity(nj)
+            else:
+                ni, nj, d = node.get_closest_children()
+                if d < node.lower_limit():
+                    self.merge(ni, nj)
+                else:
+                    finished = True
+        if len(node.children) >= 2:
+            mi, mj, d = node.get_farthest_children()
+            if d > node.upper_limit():
+                ni, nj = self.split(node, mi, mj)
+                self.repair_homogeneity(ni)
+                self.repair_homogeneity(nj)
 
     def forms_lower_dense_region(self, a, c):
         """
@@ -368,8 +383,11 @@ class Hierarchy(object):
         neighbor to A. Let d be the distance from A to B. A (and B)
         is said to form a lower dense region in C if d > U_L
         """
-        d, nearest_child = c.get_nearest_child(a)
-        return d > a.upper_limit() 
+        if c.children:
+            nearest_child, d = c.get_nearest_child(a)
+            return d > c.upper_limit()
+        else:
+            return False
 
     def forms_higher_dense_region(self, a, c):
         """
@@ -378,10 +396,11 @@ class Hierarchy(object):
         neighbor to A. Let d be the distance from A to B. A (and B)
         is said to form a higher dense region in C if d < L_L .
         """
-        b = None
-        pass
-        d, nearest_child = c.get_nearest_child(a)
-        return d < a.lower_limit() 
+        if c.children:
+            nearest_child, d = c.get_nearest_child(a)
+            return d < c.lower_limit()
+        else:
+            return False
 
 
 
@@ -424,7 +443,7 @@ class Hierarchy(object):
         nn.add_child(n1)
         nn.add_child(n2)
         # TODO: implement delete
-        nk.delete()
+        # nk.delete()
 
 
 class IHAClusterer(object):
@@ -436,8 +455,9 @@ class IHAClusterer(object):
 
     def cluster(self):
         for vec in self.vecs:
+            print("processing " + repr(vec))
             self.hierarchy.incorporate(vec)
-
+            print("OK")
 
     def get_labels(self):
         labels = self.hierarchy.fcluster()
