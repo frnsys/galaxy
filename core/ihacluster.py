@@ -34,78 +34,93 @@ class Node(object):
         Node.nodes.append(self)
         self.id = len(Node.nodes) - 1
         self.children = children
+        self.parent = None
         if not children:
             self.center = vec
         else:
-            self.center = scipy.mean([c.center for c in children])
-            # ndp representation
-            if len(children) == 1:
-                self.nsiblings = [0]
-                self.mu = 0
-                self.sigma = 0
+            self.initialize_ndp(children, ndists, nsiblings)
+
+    def initialize_ndp(self, children, ndists=[], siblings=[]):
+        for ch in children:
+            ch.parent = self
+        self.center = scipy.mean([c.center for c in children], axis=0)
+        # ndp representation
+        if len(children) == 1:
+            self.nsiblings = [0]
+            self.mu = 0
+            self.sigma = 0
+        else:
+            if ndists: # in case of split, we reuse distances
+                self.ndists = ndists
+                self.nsiblings = nsiblings
             else:
-                if ndists: # in case of split, we reuse distances
-                    self.ndists = ndists
-                    self.nsiblings = nsiblings
-                else:
-                    self.ndists = []
-                    self.nsiblings = [] # nearest sibling for each child
-                    for i, ch in enumerate(children):
-                        dists = np.array([Node.get_distance(ch, x) for x in children])
-                        dists[i] = np.inf # to avoid getting itself as nearest sibling
-                        j = np.argmin(dists)
-                        self.nsiblings.append(children[j])
-                        self.ndists.append(dists[j])
-                self.mu = scipy.mean(self.ndists)
-                self.sigma = scipy.std(self.ndists)
+                self.ndists = []
+                self.nsiblings = [] # nearest sibling for each child
+                for i, ch in enumerate(children):
+                    dists = np.array([Node.get_distance(ch, x) for x in children])
+                    dists[i] = np.inf # to avoid getting itself as nearest sibling
+                    j = np.argmin(dists)
+                    self.nsiblings.append(children[j])
+                    self.ndists.append(dists[j])
+            self.mu = scipy.mean(self.ndists)
+            self.sigma = scipy.std(self.ndists)
+
 
     def add_child(self, node):
         n = len(self.children)
-        self.center = ((self.center * n) + node.center) / (n + 1)
-        self.children.append(node)
-        node.parent = self
-        # update distances to new center
-        for n in Node.nodes:
-            Node.get_distance(self, n, update=True)
-        # update ndp representation and find nearest sibling
-        # for new child node
-        ndists = []
-        ns = None
-        nsd = np.inf
-        for i, ch in enumerate(self.children[:-1]):
-            newd = Node.get_distance(ch, node)
-            if newd < Node.get_distance(ch, self.nsiblings[i]):
-                self.nsiblings[i] = node
-            ndists.append(Node.get_distance(ch, self.nsiblings[i]))
-            if newd < nsd:
-                nsd = newd
-                ns = ch
-        self.nsiblings.append(ns)
-        ndists.append(nsd)
-        self.mu = scipy.mean(ndists)
-        self.sigma = scipy.std(ndists)
+        if n < 2:
+            self.initialize_ndp(self.children + [node])
+        else:
+            self.center = ((self.center * n) + node.center) / (n + 1)
+            self.children.append(node)
+            node.parent = self
+            # update distances to new center
+            for n in Node.nodes:
+                Node.get_distance(self, n, update=True)
+            # update ndp representation and find nearest sibling
+            # for new child node
+            ndists = []
+            ns = None
+            nsd = np.inf
+            for i, ch in enumerate(self.children[:-1]):
+                newd = Node.get_distance(ch, node)
+                if newd < Node.get_distance(ch, self.nsiblings[i]):
+                    self.nsiblings[i] = node
+                ndists.append(Node.get_distance(ch, self.nsiblings[i]))
+                if newd < nsd:
+                    nsd = newd
+                    ns = ch
+            self.nsiblings.append(ns)
+            ndists.append(nsd)
+            self.mu = scipy.mean(ndists)
+            self.sigma = scipy.std(ndists)
 
     def remove_child(self, child):
         n = len(self.children)
-        self.center = ((self.center * n) - child.center) / (n - 1)
-        index = [ch.id for ch in self.children].index(child.id)
-        del self.children[index]
-        del self.nsiblings[index]
-        # update distances to new center
-        for n in Node.nodes:
-            Node.get_distance(self, n, update=True)
-        # update ndp representation
-        ndists = []
-        for i, ch in enumerate(self.children):
-            if self.nsiblings[i].id == child.id:
-                dists = np.array([Node.get_distance(ch, x) for x in children])
-                dists[i] = np.inf # to avoid getting itself as nearest sibling
-                j = np.argmin(dists)
-                ns = self.children[j]
-                self.nsiblings[i] = ns
-            ndists.append(Node.get_distance(ch, ns))
-        self.mu = scipy.mean(ndists)
-        self.sigma = scipy.std(ndists)
+        if n > 1:
+            self.center = ((self.center * n) - child.center) / (n - 1)
+            index = [ch.id for ch in self.children].index(child.id)
+            del self.children[index]
+            del self.nsiblings[index]
+            # update distances to new center
+            for n in Node.nodes:
+                Node.get_distance(self, n, update=True)
+            # update ndp representation
+            ndists = []
+            for i, ch in enumerate(self.children):
+                if self.nsiblings[i].id == child.id:
+                    dists = np.array([Node.get_distance(ch, x) for x in children])
+                    dists[i] = np.inf # to avoid getting itself as nearest sibling
+                    j = np.argmin(dists)
+                    ns = self.children[j]
+                    self.nsiblings[i] = ns
+                ndists.append(Node.get_distance(ch, ns))
+            self.mu = scipy.mean(ndists)
+            self.sigma = scipy.std(ndists)
+        else:
+            self.children = []
+            self.ndists = []
+            self.nsiblings = []
 
     def split_children(self, mi, mj):
         """
@@ -140,11 +155,6 @@ class Node(object):
         # create new nodes n1 and n2 with the split data
         n1 = Node(children=s1_nodes, ndists=s1_ndists, nsiblings=s1_nsiblings)
         n2 = Node(children=s2_nodes, ndists=s2_ndists, nsiblings=s2_nsiblings)
-        for ch in s1_nodes:
-            ch.parent = n1
-        for ch in s2_nodes:
-            ch.parent = n2
-
 
         return n1, n2
 
@@ -162,6 +172,8 @@ class Node(object):
         else:
             return 1.5 * self.distances[0][0]
 
+    def is_root(self):
+        return self.parent is None                
     #
     # Distance functions
     #
@@ -169,8 +181,8 @@ class Node(object):
     def get_distance(ni, nj, update=False):
         i, j = sorted((ni.id, nj.id))
         current_dist = Node.distances[i, j]
-        if current_dist < 0 or (update and current_dist >= 0):
-            Node.distances[ni.id, nj.id] = distance(ni.center, nj.center)
+        if current_dist < 0 or update:
+            Node.distances[i, j] = distance(ni.center, nj.center)
         return Node.distances[i, j]
 
     def get_nearest_child(self, node):
@@ -245,18 +257,16 @@ class Hierarchy(object):
         return leaf, mdist
 
     def incorporate(self, vec):
-        import ipdb; ipdb.set_trace()
         new_node = Node(vec=vec)
-        self.leaves.add(new_node.id)
         if self.root is None: # first cluster contains the new point
             first_cluster = Node(children=[new_node])
-            new_node.parent = first_cluster
             self.root = first_cluster
         else:
             leaf, d = self.get_closest_leaf(new_node) 
             host = None
-            node = leaf.parent
-            while node and host is None:
+            node = leaf
+            while not node.parent.is_root() and host is None:
+                node = node.parent
                 nchild, d = node.get_nearest_child(new_node)
                 if d >= node.lower_limit() and d <= node.upper_limit():
                     host = node
@@ -268,12 +278,16 @@ class Hierarchy(object):
                             break
                     if host:
                         self.ins_hierarchy(host, new_node)
-                node = node.parent
             
-            if host is None:
-                self.ins_hierarchy(self.root, new_node)
+            if host is None: # node is top level cluster
+                self.ins_hierarchy(node, new_node)
+            else:
+                # TODO: make sure the no restructuring is required in case of top level insertion
+                self.restructure_hierarchy(host)
 
-            self.restructure_hierarchy()
+
+        self.leaves.add(new_node.id)
+
 
     def restructure_hierarchy(self, host_node):
         """Algorithm Hierarchy Restructuring:
@@ -363,23 +377,22 @@ class Hierarchy(object):
     def ins_node(self, ni, nj):
         ni.add_child(nj)
 
-    def ins_hierarchy(self, n, ni, nj):
+    def ins_hierarchy(self, ni, nj):
+        n = ni.parent
         n.remove_child(ni)
         nk = Node(children=[ni, nj])
-        ni.parent = nk
-        nj.parent = nk
         n.add_child(nk)
 
-    def demote(self, n, ni, nj):
+    def demote(self, ni, nj):
+        n = ni.parent
         n.remove_child(nj)
         ni.add_child(nj)
 
     def merge(self, ni, nj):
+        n = ni.parent
         n.remove_child(ni)
         n.remove_child(nj)
         nk = Node(children=[ni, nj])
-        ni.parent = nk
-        nj.parent = nk
 
         n.add_child(nk)
 
@@ -434,6 +447,8 @@ def test_2_clusters_1_dimension():
     clusterer = IHAClusterer(points)
 
     clusterer.cluster()
+
+    return clusterer
 
 
 if __name__ == '__main__':
