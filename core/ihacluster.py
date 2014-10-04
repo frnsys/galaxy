@@ -34,7 +34,7 @@ class Node(object):
         Node.nodes.append(self)
         self.id = len(Node.nodes) - 1
         self.children = children
-        if children:
+        if not children:
             self.center = vec
         else:
             self.center = scipy.mean([c.center for c in children])
@@ -51,7 +51,7 @@ class Node(object):
                     self.ndists = []
                     self.nsiblings = [] # nearest sibling for each child
                     for i, ch in enumerate(children):
-                        dists = np.array([self.get_distance(ch, x) for x in children])
+                        dists = np.array([Node.get_distance(ch, x) for x in children])
                         dists[i] = np.inf # to avoid getting itself as nearest sibling
                         j = np.argmin(dists)
                         self.nsiblings.append(children[j])
@@ -63,6 +63,7 @@ class Node(object):
         n = len(self.children)
         self.center = ((self.center * n) + node.center) / (n + 1)
         self.children.append(node)
+        node.parent = self
         # update distances to new center
         for n in Node.nodes:
             Node.get_distance(self, n, update=True)
@@ -97,7 +98,7 @@ class Node(object):
         ndists = []
         for i, ch in enumerate(self.children):
             if self.nsiblings[i].id == child.id:
-                dists = np.array([self.get_distance(ch, x) for x in children])
+                dists = np.array([Node.get_distance(ch, x) for x in children])
                 dists[i] = np.inf # to avoid getting itself as nearest sibling
                 j = np.argmin(dists)
                 ns = self.children[j]
@@ -139,6 +140,11 @@ class Node(object):
         # create new nodes n1 and n2 with the split data
         n1 = Node(children=s1_nodes, ndists=s1_ndists, nsiblings=s1_nsiblings)
         n2 = Node(children=s2_nodes, ndists=s2_ndists, nsiblings=s2_nsiblings)
+        for ch in s1_nodes:
+            ch.parent = n1
+        for ch in s2_nodes:
+            ch.parent = n2
+
 
         return n1, n2
 
@@ -160,7 +166,7 @@ class Node(object):
     # Distance functions
     #
     @staticmethod
-    def distance(ni, nj, update=False):
+    def get_distance(ni, nj, update=False):
         i, j = sorted((ni.id, nj.id))
         current_dist = Node.distances[i, j]
         if current_dist < 0 or (update and current_dist >= 0):
@@ -212,6 +218,17 @@ class Hierarchy(object):
         """
         pass
     
+    def fcluster(self, density_threshold=None):
+        """
+        Creates flat clusters by pruning all clusters
+        with density higher than the given threshold
+        and taking the leaves of the resulting hierarchy
+
+        In case no density_threshold is given,
+        we use the average density accross the entire hierarchy
+        """
+        pass
+
     def get_closest_leaf(self, node):
         """
             returns closest leaf node and the distance to it
@@ -220,7 +237,7 @@ class Hierarchy(object):
         cleaf = None
         for i in self.leaves:
             leaf = Node.nodes[i]
-            dist = self.get_distance(leaf, node)
+            dist = Node.get_distance(leaf, node)
             if dist < mdist:
                 mdist = dist
                 cleaf = leaf
@@ -228,10 +245,12 @@ class Hierarchy(object):
         return leaf, mdist
 
     def incorporate(self, vec):
+        import ipdb; ipdb.set_trace()
         new_node = Node(vec=vec)
-        self.leaves.append(new_node.id)
+        self.leaves.add(new_node.id)
         if self.root is None: # first cluster contains the new point
             first_cluster = Node(children=[new_node])
+            new_node.parent = first_cluster
             self.root = first_cluster
         else:
             leaf, d = self.get_closest_leaf(new_node) 
@@ -347,6 +366,8 @@ class Hierarchy(object):
     def ins_hierarchy(self, n, ni, nj):
         n.remove_child(ni)
         nk = Node(children=[ni, nj])
+        ni.parent = nk
+        nj.parent = nk
         n.add_child(nk)
 
     def demote(self, n, ni, nj):
@@ -357,6 +378,9 @@ class Hierarchy(object):
         n.remove_child(ni)
         n.remove_child(nj)
         nk = Node(children=[ni, nj])
+        ni.parent = nk
+        nj.parent = nk
+
         n.add_child(nk)
 
     def split(self, nk, mi, mj):
@@ -378,25 +402,39 @@ class Hierarchy(object):
 
 class IHAClusterer(object):
     def __init__(self, vecs):
-        Node.init(m_nodes)
+        size = len(vecs)
+        Node.init(size)
+        self.vecs = vecs
         self.hierarchy = Hierarchy(len(vecs))
 
     def cluster(self):
-        for vec in vecs:
+        for vec in self.vecs:
             self.hierarchy.incorporate(vec)
 
-        labels = fcluster(self.hierarchy)
 
+    def get_labels(self):
+        labels = self.hierarchy.fcluster()
         return labels
 
 
-    def fcluster(hierarchy, density_threshold=None):
-        """
-            Creates flat clusters by pruning all clusters
-            with density higher than the given threshold
-            and taking the leaves of the resulting hierarchy
+def create_2_1dim_clusters():
+    cluster_a = np.arange(0,1,0.1)
+    cluster_b = np.arange(2,3,0.1)
+    points = np.append(cluster_a, cluster_b)
+    np.random.shuffle(points)
+    points = [np.array([p]) for p in points]
+    return points
 
-            In case no density_threshold is given,
-            we use the average density accross the entire hierarchy
-        """
-        pass
+
+def test_2_clusters_1_dimension():
+    # create sample data
+    points = create_2_1dim_clusters()
+    
+    # apply clustering
+    clusterer = IHAClusterer(points)
+
+    clusterer.cluster()
+
+
+if __name__ == '__main__':
+    test_2_clusters_1_dimension()
