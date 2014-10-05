@@ -75,13 +75,11 @@ class Node(object):
             return False
 
 
-
-
-
 class LeafNode(Node):
     def __init__(self, vec, parent=None):
         super(LeafNode, self).__init__(parent)
         self.center = vec
+
 
 class ClusterNode(Node):
     def __init__(self, children, ndists=[], nsiblings=[], parent=None):
@@ -211,9 +209,9 @@ class ClusterNode(Node):
         sj_nsiblings = [Node.get(nsibling_ids_by_id[id]) for id in sj_ids]
 
         # create new nodes n1 and n2 with the split data
-        ni = Node(children=si_nodes, ndists=si_ndists, nsiblings=si_nsiblings)
+        ni = ClusterNode(children=si_nodes, ndists=si_ndists, nsiblings=si_nsiblings)
         ni.add_child(mi)
-        nj = Node(children=sj_nodes, ndists=sj_ndists, nsiblings=sj_nsiblings)
+        nj = ClusterNode(children=sj_nodes, ndists=sj_ndists, nsiblings=sj_nsiblings)
         nj.add_child(mj)
 
         return ni, nj
@@ -247,7 +245,8 @@ class ClusterNode(Node):
         return mi, mj, d
 
     def lower_limit(self):
-        # TODO: what happens in case of just one child?
+        # TODO: what happens in case of just one child? 
+        # (for example, after a split)
         n = len(self.children)
         if n > 2:
             return self.mu - self.sigma
@@ -263,7 +262,6 @@ class ClusterNode(Node):
 
     def is_root(self):
         return self.parent is None                
-
 
 
 class Hierarchy(object):
@@ -294,6 +292,31 @@ class Hierarchy(object):
         we use the average density accross the entire hierarchy
         """
         pass
+
+    def visualize(self):
+        import matplotlib.pyplot as plt
+
+        tree = nx.DiGraph()
+        root = self.root
+        current_level = root
+        labels = {root.id: root.center}
+        while current_level:
+            next_level = []
+            for n in current_level:
+                edges = []
+                for ch in n.children:
+                    labels[ch.id] = ch.center
+                    edges.append((n.id, ch.id))
+                    type(ch) == ClusterNode:
+                        next_level.append(ch)
+                tree.add_edges_from(edges)
+            current_level = next_level
+
+        plt.title("IHAC hierarchy")
+        # pos = nx.graphviz_layout(tree, prog='dot')
+        # nx.draw(tree, pos)
+        nx.draw(tree)
+        plt.show()
 
     def get_cluster_points(self, node):
         """
@@ -425,7 +448,7 @@ class Hierarchy(object):
     def ins_hierarchy(self, ni, nj):
         nn = ni.parent
         nn.remove_child(ni)
-        nk = Node(children=[ni, nj])
+        nk = ClusterNode(children=[ni, nj])
         nn.add_child(nk)
 
     def demote(self, ni, nj):
@@ -437,7 +460,7 @@ class Hierarchy(object):
         nn = ni.parent
         nn.remove_child(ni)
         nn.remove_child(nj)
-        nk = Node(children=[ni, nj])
+        nk = ClusterNode(children=[ni, nj])
         nn.add_child(nk)
 
     def split(self, nk, mi, mj):
@@ -463,10 +486,10 @@ class IHAClusterer(object):
         size = len(vecs)
         Node.init(size)
         self.vecs = vecs
-        self.hierarchy = Hierarchy(len(vecs))
+        self.hierarchy = Hierarchy(len(vecs), vecs[0], vecs[1])
 
     def cluster(self):
-        for vec in self.vecs:
+        for vec in self.vecs[2:]:
             print("processing " + repr(vec))
             self.hierarchy.incorporate(vec)
             print("OK")
