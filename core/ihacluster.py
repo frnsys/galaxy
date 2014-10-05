@@ -17,15 +17,16 @@ class Node(object):
     @classmethod
     def init(cls, size):
         cls.size = size
-        m_nodes = 2 * size - 1 # maximum number of nodes in the hierarchy        
+        m_nodes = 2 * size - 1 # maximum number of nodes in the hierarchy
+        n_distances = m_nodes * (m_nodes + 1) / 2 # maximum number of cached distances     
         cls.nodes = []  # a list that will hold all the nodes created
-        cls.distances = -1 * np.ones((m_nodes, m_nodes)) # A matrix to hold cluster center distances for pairs of node indices
+        cls.distances = -1 * np.ones( n_distances ) # A *condensed* matrix for distances between cluster centers
 
     @classmethod
     def get(cls, id):
         return cls.nodes[id]
 
-    def __init__(self, vec=None, children=[], ndists=[], nsiblings=[]):
+    def __init__(self, parent=None):
         """
             A new node is created by passing either:
             - a vector point, in case of a leaf node
@@ -33,12 +34,63 @@ class Node(object):
         """
         Node.nodes.append(self)
         self.id = len(Node.nodes) - 1
-        self.children = children
-        self.parent = None
-        if not children:
-            self.center = vec
+        self.parent = parent
+
+    #
+    # Distance functions
+    #
+    @staticmethod
+    def get_distance(ni, nj, update=False):
+        i, j = sorted((ni.id, nj.id))
+        pos = j * (j - 1) / 2 + i
+        current_dist = Node.distances[pos]
+        if current_dist < 0 or update:
+            Node.distances[pos] = distance(ni.center, nj.center)
+        return Node.distances[pos]
+
+    def forms_lower_dense_region(self, c):
+        """
+        Let C be a homogenous cluster. 
+        Given a new point A, let B be a C‘s cluster member that is the nearest
+        neighbor to A. Let d be the distance from A to B. A (and B)
+        is said to form a lower dense region in C if d > U_L
+        """
+        if type(c) is ClusterNode:
+            nearest_child, d = c.get_nearest_child(a)
+            return d > c.upper_limit()
         else:
-            self.initialize_ndp(children, ndists, nsiblings)
+            return False
+
+    def forms_higher_dense_region(self, c):
+        """
+        Let C be a homogenous cluster. Given a new
+        point A, let B be a C‘s cluster member that is the nearest
+        neighbor to A. Let d be the distance from A to B. A (and B)
+        is said to form a higher dense region in C if d < L_L .
+        """
+        if type(c) is ClusterNode:
+            nearest_child, d = c.get_nearest_child(a)
+            return d < c.lower_limit()
+        else:
+            return False
+
+
+
+
+
+class LeafNode(Node):
+    def __init__(self, vec, parent=None):
+        super(LeafNode, self).__init__(parent)
+        self.center = vec
+
+class ClusterNode(Node):
+    def __init__(self, children, ndists=[], nsiblings=[], parent=None):
+        """
+            In case the cluster is being created as subcluster
+            of an existing one, we can reuse ndists and nsiblings
+        """
+        super(ClusterNode, self).__init__(parent)
+        self.initialize_ndp(children, ndists, nsiblings)
 
     def initialize_ndp(self, children, ndists=[], nsiblings=[]):
         self.children = children
@@ -65,7 +117,6 @@ class Node(object):
                     self.ndists.append(dists[j])
             self.mu = scipy.mean(self.ndists)
             self.sigma = scipy.std(self.ndists)
-
 
     def add_child(self, new_child):
         n = len(self.children)
@@ -165,35 +216,7 @@ class Node(object):
         nj = Node(children=sj_nodes, ndists=sj_ndists, nsiblings=sj_nsiblings)
         nj.add_child(mj)
 
-        import ipdb; ipdb.set_trace()
         return ni, nj
-
-    def lower_limit(self):
-        n = len(self.children)
-        if n > 2:
-            return self.mu - self.sigma
-        else:
-            return (2.0 / 3) * self.ndists[0]
-
-    def upper_limit(self):
-        n = len(self.children)
-        if n > 2:
-            return self.mu + self.sigma
-        else:
-            return 1.5 * self.ndists[0]
-
-    def is_root(self):
-        return self.parent is None                
-    #
-    # Distance functions
-    #
-    @staticmethod
-    def get_distance(ni, nj, update=False):
-        i, j = sorted((ni.id, nj.id))
-        current_dist = Node.distances[i, j]
-        if current_dist < 0 or update:
-            Node.distances[i, j] = distance(ni.center, nj.center)
-        return Node.distances[i, j]
 
     def get_nearest_child(self, node):
         dists = np.array([Node.get_distance(ch, node) for ch in self.children])
@@ -223,15 +246,36 @@ class Node(object):
         d = self.ndists[i]
         return mi, mj, d
 
+    def lower_limit(self):
+        # TODO: what happens in case of just one child?
+        n = len(self.children)
+        if n > 2:
+            return self.mu - self.sigma
+        else:
+            return (2.0 / 3) * self.ndists[0]
+
+    def upper_limit(self):
+        n = len(self.children)
+        if n > 2:
+            return self.mu + self.sigma
+        else:
+            return 1.5 * self.ndists[0]
+
+    def is_root(self):
+        return self.parent is None                
+
+
 
 class Hierarchy(object):
-    def __init__(self, size):
+    def __init__(self, size, vec1, vec2):
         """
             Size is the number of points we plan to cluster
         """
+        leaf1 = LeafNode(vec1)
+        leaf2 = LeafNode(vec2)
+        self.root = ClusterNode(children=[leaf1, leaf2])
         self.size = size
-        self.leaves = set() # Indices of leaf nodes
-        self.root = None
+        self.leaves = [leaf1.id, leaf2.id] # Indices of leaf nodes
 
     def resize(self):
         """
@@ -280,38 +324,34 @@ class Hierarchy(object):
         return leaf, mdist
 
     def incorporate(self, vec):
-        new_node = Node(vec=vec)
-        if self.root is None: # first cluster contains the new point
-            first_cluster = Node(children=[new_node])
-            self.root = first_cluster
+        new_leaf = LeafNode(vec=vec)
+        closest_leaf, d = self.get_closest_leaf(new_leaf) 
+        host = None
+        node = closest_leaf
+        while not node.parent.is_root() and host is None:
+            print("A")
+            node = node.parent
+            nchild, d = node.get_nearest_child(new_leaf)
+            if d >= node.lower_limit() and d <= node.upper_limit():
+                host = node
+                self.ins_node(node, new_leaf)
+            elif d < node.lower_limit():
+                for ch in node.children:
+                    if new_leaf.forms_lower_dense_region(ch):
+                        host = nchild
+                        break
+                if host:
+                    self.ins_hierarchy(host, new_leaf)
+        
+        print("host search finished")
+        if host is not None: # node is top level cluster
+            print("host found")
+            self.restructure_hierarchy(host)
         else:
-            leaf, d = self.get_closest_leaf(new_node) 
-            host = None
-            node = leaf
-            while not node.parent.is_root() and host is None:
-                print("A")
-                node = node.parent
-                nchild, d = node.get_nearest_child(new_node)
-                if d >= node.lower_limit() and d <= node.upper_limit():
-                    host = node
-                    self.ins_node(node, new_node)
-                elif d < node.lower_limit():
-                    for ch in node.children:
-                        if self.forms_lower_dense_region(new_node, ch):
-                            host = nchild
-                            break
-                    if host:
-                        self.ins_hierarchy(host, new_node)
-            
-            print("host search finished")
-            if host is not None: # node is top level cluster
-                print("host found")
-                self.restructure_hierarchy(host)
-            else:
-                # TODO: make sure the no restructuring is required in case of top level insertion                
-                print("host not found")
-                self.ins_hierarchy(node, new_node)
-        self.leaves.add(new_node.id)
+            # TODO: make sure the no restructuring is required in case of top level insertion                
+            print("host not found")
+            self.ins_hierarchy(node, new_leaf)
+        self.leaves.append(new_leaf.id)
 
 
     def restructure_hierarchy(self, host_node):
@@ -332,7 +372,7 @@ class Hierarchy(object):
             parent = current.parent
             if not current.is_root():
                 siblings = parent.children
-                misplaced = [s for s in siblings if not self.forms_lower_dense_region(s, current)]
+                misplaced = [s for s in siblings if not s.forms_lower_dense_region(current)]
                 for node in misplaced:
                     self.demote(current, node)
 
@@ -375,34 +415,6 @@ class Hierarchy(object):
                 ni, nj = self.split(node, mi, mj)
                 self.repair_homogeneity(ni)
                 self.repair_homogeneity(nj)
-
-    def forms_lower_dense_region(self, a, c):
-        """
-        Let C be a homogenous cluster. 
-        Given a new point A, let B be a C‘s cluster member that is the nearest
-        neighbor to A. Let d be the distance from A to B. A (and B)
-        is said to form a lower dense region in C if d > U_L
-        """
-        if c.children:
-            nearest_child, d = c.get_nearest_child(a)
-            return d > c.upper_limit()
-        else:
-            return False
-
-    def forms_higher_dense_region(self, a, c):
-        """
-        Let C be a homogenous cluster. Given a new
-        point A, let B be a C‘s cluster member that is the nearest
-        neighbor to A. Let d be the distance from A to B. A (and B)
-        is said to form a higher dense region in C if d < L_L .
-        """
-        if c.children:
-            nearest_child, d = c.get_nearest_child(a)
-            return d < c.lower_limit()
-        else:
-            return False
-
-
 
     #
     # Restructuring operators
