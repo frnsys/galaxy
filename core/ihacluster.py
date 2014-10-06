@@ -310,8 +310,8 @@ class Hierarchy(object):
             distance_threshold = self.get_average_density()
 
         clusters = []
-        labels = {} # dictionary mapping leaf ids to cluster
-        current_level = self.root
+        labels = {} # dictionary mapping leaf ids to cluster indices
+        current_level = [self.root]
         while current_level:
             next_level = []
             for n in current_level:
@@ -330,14 +330,23 @@ class Hierarchy(object):
             current_level = next_level
 
     def get_average_density(self):
-        pass
+        level_averages = []
+        current_level = [self.root]
+        while current_level:
+            next_level = []
+            level_averages.append(scipy.mean([n.sigma for n in current_level]))
+            for n in current_level:
+                next_level += [ch for ch in n.children if type(ch) is ClusterNode]
+            current_level = next_level
+        return scipy.mean(level_averages)
+
 
     def visualize(self):
         import matplotlib.pyplot as plt
 
         tree = nx.DiGraph()
         root = self.root
-        current_level = root
+        current_level = [root]
         labels = {root.id: root.center}
         while current_level:
             next_level = []
