@@ -36,6 +36,20 @@ class Node(object):
         self.id = len(Node.nodes) - 1
         self.parent = parent
 
+    def get_cluster_leaves(self):
+        """
+        Returns all the points inside the cluster represented by
+        the node, i.e.: all the descendant leaf nodes
+        """
+        if type(self) is LeafNode:
+            return [self]
+        elif type(self) is ClusterNode:
+            points = []
+            for ch in self.children:
+                points += ch.get_cluster_leaves()
+            return points
+
+
     #
     # Distance functions
     #
@@ -282,15 +296,40 @@ class Hierarchy(object):
         """
         pass
     
-    def fcluster(self, density_threshold=None):
+    def fcluster(self, distance_threshold=None):
         """
         Creates flat clusters by pruning all clusters
         with density higher than the given threshold
         and taking the leaves of the resulting hierarchy
 
-        In case no density_threshold is given,
+        In case no distance_threshold is given,
         we use the average density accross the entire hierarchy
+        (average of averages per level)
         """
+        if distance_threshold is None:
+            distance_threshold = self.get_average_density()
+
+        clusters = []
+        labels = {} # dictionary mapping leaf ids to cluster
+        current_level = self.root
+        while current_level:
+            next_level = []
+            for n in current_level:
+                new_cluster = None
+                if type(n) is LeafNode:
+                    new_cluster = [n]
+                if type(n) is ClusterNode:
+                    if n.sigma <= distance_threshold:
+                        new_cluster = n.get_cluster_leaves()
+                    else:
+                        next_level += n.children
+                if new_cluster:
+                    ind_cluster = len(clusters)
+                    clusters.append([l.center for l in new_cluster])
+                    labels.update({l.id: ind_cluster for l in new_cluster})
+            current_level = next_level
+
+    def get_average_density(self):
         pass
 
     def visualize(self):
@@ -317,19 +356,6 @@ class Hierarchy(object):
         # nx.draw(tree, pos)
         nx.draw(tree)
         plt.show()
-
-    def get_cluster_points(self, node):
-        """
-        Returns all the points inside the cluster represented
-        by the given node. That is, the centers of the descendant leaf nodes
-        """
-        if node.id in self.leaves:
-            return [node.center]
-        else:
-            points = []
-            for ch in node.children:
-                points += self.get_cluster_points(ch)
-            return points
 
     def get_closest_leaf(self, node):
         """
@@ -532,8 +558,8 @@ if __name__ == '__main__':
     top = root.children[0]
     hi = clusterer.hierarchy
     second = top.children
-    cluster_a = hi.get_cluster_points(second[0])
-    cluster_b = hi.get_cluster_points(second[1])
+    cluster_a = hi.get_cluster_leaves(second[0])
+    cluster_b = hi.get_cluster_leaves(second[1])
 
     print("Found clusters:\n")
     print("A: ")
