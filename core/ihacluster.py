@@ -49,18 +49,23 @@ class Node(object):
                 points += ch.get_cluster_leaves()
             return points
 
-
     #
     # Distance functions
     #
     @staticmethod
     def get_distance(ni, nj, update=False):
         i, j = sorted((ni.id, nj.id))
-        pos = j * (j - 1) / 2 + i
-        current_dist = Node.distances[pos]
-        if current_dist < 0 or update:
-            Node.distances[pos] = distance(ni.center, nj.center)
-        return Node.distances[pos]
+        if i == j:
+            return 0.0
+        else:
+            pos = int(j * (j - 1) / 2) + i
+            current_dist = Node.distances[pos]
+            if current_dist < 0 or update:
+                if None in [ni.center, nj.center]:
+                    Node.distances[pos] = -1
+                else:
+                    Node.distances[pos] = distance(ni.center, nj.center)
+            return Node.distances[pos]
 
     def forms_lower_dense_region(self, c):
         """
@@ -70,7 +75,7 @@ class Node(object):
         is said to form a lower dense region in C if d > U_L
         """
         if type(c) is ClusterNode:
-            nearest_child, d = c.get_nearest_child(a)
+            nearest_child, d = c.get_nearest_child(self)
             return d > c.upper_limit()
         else:
             return False
@@ -94,6 +99,9 @@ class LeafNode(Node):
         super(LeafNode, self).__init__(parent)
         self.center = vec
 
+    def is_root(self):
+        return False
+
 
 class ClusterNode(Node):
     def __init__(self, children, ndists=[], nsiblings=[], parent=None):
@@ -108,6 +116,7 @@ class ClusterNode(Node):
         self.children = children
         for ch in children:
             ch.parent = self
+
         self.center = scipy.mean([c.center for c in children], axis=0)
         # ndp representation
         if len(children) == 1:
@@ -139,8 +148,11 @@ class ClusterNode(Node):
             self.children.append(new_child)
             new_child.parent = self
             # update distances to new center
-            for n in Node.nodes:
-                Node.get_distance(self, n, update=True)
+            for node in Node.nodes:
+                try:
+                    Node.get_distance(self, node, update=True)
+                except Exception:
+                    import ipdb; ipdb.set_trace()
             # update ndp representation and find nearest sibling
             # for new child new_child
             ns = None
@@ -159,30 +171,39 @@ class ClusterNode(Node):
             self.sigma = scipy.std(self.ndists)
 
     def remove_child(self, child):
-        n = len(self.children)
-        if n > 1:
-            self.center = ((self.center * n) - child.center) / (n - 1)
-            index = [ch.id for ch in self.children].index(child.id)
-            del self.children[index]
-            del self.nsiblings[index]
-            # update distances to new center
-            for n in Node.nodes:
-                Node.get_distance(self, n, update=True)
-            # update ndp representation
-            for i, ch in enumerate(self.children):
-                if self.nsiblings[i].id == child.id:
-                    dists = np.array([Node.get_distance(ch, x) for x in self.children])
-                    dists[i] = np.inf # to avoid getting itself as nearest sibling
-                    j = np.argmin(dists)
-                    ns = self.children[j]
-                    self.nsiblings[i] = ns
-                    self.ndists[i] = dists[j]
-            self.mu = scipy.mean(self.ndists)
-            self.sigma = scipy.std(self.ndists)
-        else:
+        # TODO: solve case where only one child is left
+        nchildren = len(self.children)
+        if nchildren == 1:
+            self.center = None
             self.children = []
             self.ndists = []
             self.nsiblings = []
+        else:
+            # remove child, update center and distances
+            self.center = ((self.center * nchildren) - child.center) / (nchildren - 1)
+            index = [ch.id for ch in self.children].index(child.id)
+            del self.children[index]
+            del self.nsiblings[index]
+            for n in Node.nodes:
+                Node.get_distance(self, n, update=True)
+
+            if len(self.children) > 1:
+                # update ndp representation
+                for i, ch in enumerate(self.children):
+                    if self.nsiblings[i].id == child.id:
+                        dists = np.array([Node.get_distance(ch, x) for x in self.children])
+                        dists[i] = np.inf # to avoid getting itself as nearest sibling
+                        j = np.argmin(dists)
+                        ns = self.children[j]
+                        self.nsiblings[i] = ns
+                        self.ndists[i] = dists[j]
+                self.mu = scipy.mean(self.ndists)
+                self.sigma = scipy.std(self.ndists)
+            else:
+                self.nsiblings = []
+                self.mu = 0
+                self.sigma = 0
+
 
     def split_children(self, mi, mj):
         """
@@ -202,6 +223,7 @@ class ClusterNode(Node):
         graph = nx.Graph()
         graph.add_edges_from(edges)
         graph.remove_edge(mi.id, mj.id)
+        import ipdb; ipdb.set_trace()
         s1_ids, s2_ids = list(nx.connected_components(graph))
         if mi.id in s1_ids:
             si_ids, sj_ids = s1_ids, s2_ids
@@ -233,8 +255,15 @@ class ClusterNode(Node):
     def get_nearest_child(self, node):
         dists = np.array([Node.get_distance(ch, node) for ch in self.children])
         i = np.argmin(dists)
+        return self.children[i], dists[i]
+
+    def get_nearest_cluster_child(self, node):
+        dists = np.array([Node.get_distance(ch, node) for ch in self.children if type(ch) is ClusterNode])
+        import ipdb; ipdb.set_trace()
+        i = np.argmin(dists)
 
         return self.children[i], dists[i]
+
 
     def get_closest_children(self):
         """
@@ -310,8 +339,8 @@ class Hierarchy(object):
             distance_threshold = self.get_average_density()
 
         clusters = []
-        labels = {} # dictionary mapping leaf ids to cluster
-        current_level = self.root
+        labels = {} # dictionary mapping leaf ids to cluster indices
+        current_level = [self.root]
         while current_level:
             next_level = []
             for n in current_level:
@@ -330,14 +359,23 @@ class Hierarchy(object):
             current_level = next_level
 
     def get_average_density(self):
-        pass
+        level_averages = []
+        current_level = [self.root]
+        while current_level:
+            next_level = []
+            level_averages.append(scipy.mean([n.sigma for n in current_level]))
+            for n in current_level:
+                next_level += [ch for ch in n.children if type(ch) is ClusterNode]
+            current_level = next_level
+        return scipy.mean(level_averages)
+
 
     def visualize(self):
         import matplotlib.pyplot as plt
 
         tree = nx.DiGraph()
         root = self.root
-        current_level = root
+        current_level = [root]
         labels = {root.id: root.center}
         while current_level:
             next_level = []
@@ -346,7 +384,7 @@ class Hierarchy(object):
                 for ch in n.children:
                     labels[ch.id] = ch.center
                     edges.append((n.id, ch.id))
-                    type(ch) == ClusterNode:
+                    if type(ch) == ClusterNode:
                         next_level.append(ch)
                 tree.add_edges_from(edges)
             current_level = next_level
@@ -375,12 +413,10 @@ class Hierarchy(object):
     def incorporate(self, vec):
         new_leaf = LeafNode(vec=vec)
         closest_leaf, d = self.get_closest_leaf(new_leaf) 
+        node = closest_leaf.parent
+        nchild = closest_leaf
         host = None
-        node = closest_leaf
-        while not node.parent.is_root() and host is None:
-            print("A")
-            node = node.parent
-            nchild, d = node.get_nearest_child(new_leaf)
+        while (not node.is_root() and host is None):
             if d >= node.lower_limit() and d <= node.upper_limit():
                 host = node
                 self.ins_node(node, new_leaf)
@@ -391,10 +427,15 @@ class Hierarchy(object):
                         break
                 if host:
                     self.ins_hierarchy(host, new_leaf)
+            node = node.parent
+            nchild, d = node.get_nearest_cluster_child(new_leaf)
+
         
         print("host search finished")
         if host is not None: # node is top level cluster
             print("host found")
+            if type(host) is LeafNode:
+                import ipdb; ipdb.set_trace()
             self.restructure_hierarchy(host)
         else:
             # TODO: make sure the no restructuring is required in case of top level insertion                
@@ -559,7 +600,9 @@ if __name__ == '__main__':
     hi = clusterer.hierarchy
     second = top.children
     cluster_a = hi.get_cluster_leaves(second[0])
+    cluster_a = [n.center for n in cluster_a]
     cluster_b = hi.get_cluster_leaves(second[1])
+    cluster_b = [n.center for n in cluster_b]
 
     print("Found clusters:\n")
     print("A: ")
