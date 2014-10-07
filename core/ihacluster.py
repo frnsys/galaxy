@@ -61,7 +61,7 @@ class Node(object):
             pos = int(j * (j - 1) / 2) + i
             current_dist = Node.distances[pos]
             if current_dist < 0 or update:
-                if None in [ni.center, nj.center]:
+                if ni.center is None or nj.center is None:
                     Node.distances[pos] = -1
                 else:
                     Node.distances[pos] = distance(ni.center, nj.center)
@@ -149,10 +149,7 @@ class ClusterNode(Node):
             new_child.parent = self
             # update distances to new center
             for node in Node.nodes:
-                try:
-                    Node.get_distance(self, node, update=True)
-                except Exception:
-                    import ipdb; ipdb.set_trace()
+                Node.get_distance(self, node, update=True)
             # update ndp representation and find nearest sibling
             # for new child new_child
             ns = None
@@ -171,7 +168,6 @@ class ClusterNode(Node):
             self.sigma = scipy.std(self.ndists)
 
     def remove_child(self, child):
-        # TODO: solve case where only one child is left
         nchildren = len(self.children)
         if nchildren == 1:
             self.center = None
@@ -223,7 +219,6 @@ class ClusterNode(Node):
         graph = nx.Graph()
         graph.add_edges_from(edges)
         graph.remove_edge(mi.id, mj.id)
-        import ipdb; ipdb.set_trace()
         s1_ids, s2_ids = list(nx.connected_components(graph))
         if mi.id in s1_ids:
             si_ids, sj_ids = s1_ids, s2_ids
@@ -259,7 +254,6 @@ class ClusterNode(Node):
 
     def get_nearest_cluster_child(self, node):
         dists = np.array([Node.get_distance(ch, node) for ch in self.children if type(ch) is ClusterNode])
-        import ipdb; ipdb.set_trace()
         i = np.argmin(dists)
 
         return self.children[i], dists[i]
@@ -318,6 +312,103 @@ class Hierarchy(object):
         self.size = size
         self.leaves = [leaf1.id, leaf2.id] # Indices of leaf nodes
 
+    def incorporate(self, vec):
+        # import ipdb; ipdb.set_trace()
+        new_leaf = LeafNode(vec=vec)
+        closest_leaf, d = self.get_closest_leaf(new_leaf)
+
+        current = closest_leaf.parent
+        nchild = closest_leaf
+        found_host = None
+        while current and not found_host:
+            if d >= current.lower_limit() and d <= current.upper_limit():
+                self.ins_node(current, new_leaf)
+                found_host = current
+            elif d < current.lower_limit():
+                for ch in current.children:
+                    if new_leaf.forms_lower_dense_region(ch) or type(nchild) is LeafNode:
+                        self.ins_hierarchy(nchild, new_leaf)
+                        found_host = nchild.parent # new cluster
+            if not found_host:                                            
+                next = current.parent
+                if next:
+                    current = next
+                    nchild, d = current.get_nearest_cluster_child(new_leaf)
+                else: # reached top level
+                    break
+
+        print("host search finished")
+        if found_host: # node is top level cluster
+            print("host found")
+            self.restructure_hierarchy(found_host)
+        else:
+            print("host not found")
+            self.ins_hierarchy(current, new_leaf)
+        self.leaves.append(new_leaf.id)
+
+    def restructure_hierarchy(self, host_node):
+        """Algorithm Hierarchy Restructuring:
+            
+            Starting on host_node, we traverse ancestors doing
+            the following:
+
+            1. Recover the siblings of current that are misplaced.
+                (A node N J is misplaced as N I ’s sibling iff
+                N J does not form a lower dense region in N I )
+                In such case we apply DEMOTE(N I , N J )
+
+            2. Maintain the homogeneity of crntNode.
+        """
+        current = host_node
+        while current:
+            parent = current.parent
+            if not current.is_root():
+                siblings = parent.children
+                misplaced = [s for s in siblings if not s.forms_lower_dense_region(current)]
+                for node in misplaced:
+                    self.demote(current, node)
+
+            self.repair_homogeneity(current)
+            current = parent
+    
+    def repair_homogeneity(self, node):
+        """
+            Algorithm Homogeneity Maintenance
+
+            # 1. Let an input N be the node that is being examined.
+            # 2. Repeat
+                # 3. Let N I and N J be the pair of neighbors among N ‘s
+                # child nodes with the smallest nearest distance.
+                # 4. If N I and N J form a higher dense region,
+                    # 5. Then MERGE (N I , N J ) (see Figure 1d)
+            # 6. Until there is no higher dense region found_host in N during
+            # the last iteration.
+            
+            # 7. Let M I and M J be the pair of neighbors among N ‘s
+            # child nodes with the largest nearest distance.
+            # 8. If M I and M J form a lower dense region in N ,
+                # 9. Then Let (N I , N J ) = SPLIT (Θ, N ). (see Figure 1e)
+                # 10. Call Homogeneity Maintenance(N I ).
+                # 11. Call Homogeneity Maintenance(N J ).
+        """
+        finished = False
+        while not finished:
+            if len(node.children) < 2:
+                finished = True
+            else:
+                ni, nj, d = node.get_closest_children()
+                if d < node.lower_limit():
+                    self.merge(ni, nj)
+                else:
+                    finished = True
+        if len(node.children) >= 2:
+            mi, mj, d = node.get_farthest_children()
+            if d > node.upper_limit():
+                import ipdb; ipdb.set_trace()
+                ni, nj = self.split(node, mi, mj)
+                self.repair_homogeneity(ni)
+                self.repair_homogeneity(nj)
+
     def resize(self):
         """
             resize Node data structures to hold process
@@ -358,6 +449,8 @@ class Hierarchy(object):
                     labels.update({l.id: ind_cluster for l in new_cluster})
             current_level = next_level
 
+        return clusters, labels
+
     def get_average_density(self):
         level_averages = []
         current_level = [self.root]
@@ -368,7 +461,6 @@ class Hierarchy(object):
                 next_level += [ch for ch in n.children if type(ch) is ClusterNode]
             current_level = next_level
         return scipy.mean(level_averages)
-
 
     def visualize(self):
         import matplotlib.pyplot as plt
@@ -410,102 +502,6 @@ class Hierarchy(object):
 
         return leaf, mdist
 
-    def incorporate(self, vec):
-        new_leaf = LeafNode(vec=vec)
-        closest_leaf, d = self.get_closest_leaf(new_leaf) 
-        node = closest_leaf.parent
-        nchild = closest_leaf
-        host = None
-        while (not node.is_root() and host is None):
-            if d >= node.lower_limit() and d <= node.upper_limit():
-                host = node
-                self.ins_node(node, new_leaf)
-            elif d < node.lower_limit():
-                for ch in node.children:
-                    if new_leaf.forms_lower_dense_region(ch):
-                        host = nchild
-                        break
-                if host:
-                    self.ins_hierarchy(host, new_leaf)
-            node = node.parent
-            nchild, d = node.get_nearest_cluster_child(new_leaf)
-
-        
-        print("host search finished")
-        if host is not None: # node is top level cluster
-            print("host found")
-            if type(host) is LeafNode:
-                import ipdb; ipdb.set_trace()
-            self.restructure_hierarchy(host)
-        else:
-            # TODO: make sure the no restructuring is required in case of top level insertion                
-            print("host not found")
-            self.ins_hierarchy(node, new_leaf)
-        self.leaves.append(new_leaf.id)
-
-
-    def restructure_hierarchy(self, host_node):
-        """Algorithm Hierarchy Restructuring:
-            
-            Starting on host_node, we traverse ancestors doing
-            the following:
-
-            1. Recover the siblings of current that are misplaced.
-                (A node N J is misplaced as N I ’s sibling iff
-                N J does not form a lower dense region in N I )
-                In such case we apply DEMOTE(N I , N J )
-
-            2. Maintain the homogeneity of crntNode.
-        """
-        current = host_node
-        while current:
-            parent = current.parent
-            if not current.is_root():
-                siblings = parent.children
-                misplaced = [s for s in siblings if not s.forms_lower_dense_region(current)]
-                for node in misplaced:
-                    self.demote(current, node)
-
-            self.repair_homogeneity(current)
-            current = parent
-    
-    def repair_homogeneity(self, node):
-        """
-            Algorithm Homogeneity Maintenance
-
-            # 1. Let an input N be the node that is being examined.
-            # 2. Repeat
-                # 3. Let N I and N J be the pair of neighbors among N ‘s
-                # child nodes with the smallest nearest distance.
-                # 4. If N I and N J form a higher dense region,
-                    # 5. Then MERGE (N I , N J ) (see Figure 1d)
-            # 6. Until there is no higher dense region found in N during
-            # the last iteration.
-            
-            # 7. Let M I and M J be the pair of neighbors among N ‘s
-            # child nodes with the largest nearest distance.
-            # 8. If M I and M J form a lower dense region in N ,
-                # 9. Then Let (N I , N J ) = SPLIT (Θ, N ). (see Figure 1e)
-                # 10. Call Homogeneity Maintenance(N I ).
-                # 11. Call Homogeneity Maintenance(N J ).
-        """
-        finished = False
-        while not finished:
-            if len(node.children) < 2:
-                finished = True
-            else:
-                ni, nj, d = node.get_closest_children()
-                if d < node.lower_limit():
-                    self.merge(ni, nj)
-                else:
-                    finished = True
-        if len(node.children) >= 2:
-            mi, mj, d = node.get_farthest_children()
-            if d > node.upper_limit():
-                ni, nj = self.split(node, mi, mj)
-                self.repair_homogeneity(ni)
-                self.repair_homogeneity(nj)
-
     #
     # Restructuring operators
     #
@@ -513,10 +509,14 @@ class Hierarchy(object):
         ni.add_child(nj)
 
     def ins_hierarchy(self, ni, nj):
-        nn = ni.parent
-        nn.remove_child(ni)
-        nk = ClusterNode(children=[ni, nj])
-        nn.add_child(nk)
+        if not ni.is_root():
+            nn = ni.parent
+            nn.remove_child(ni)
+            nk = ClusterNode(children=[ni, nj])
+            nn.add_child(nk)
+        else:
+            nk = ClusterNode(children=[ni, nj])
+            self.root = nk
 
     def demote(self, ni, nj):
         nn = ni.parent
@@ -553,6 +553,7 @@ class IHAClusterer(object):
         size = len(vecs)
         Node.init(size)
         self.vecs = vecs
+        print("initializing with %s and %s" % (repr(vecs[0]), repr(vecs[1])))
         self.hierarchy = Hierarchy(len(vecs), vecs[0], vecs[1])
 
     def cluster(self):
@@ -594,18 +595,26 @@ def test_2_clusters_1_dimension():
 
 
 if __name__ == '__main__':
-    clusterer = test_2_clusters_1_dimension()
-    root = clusterer.hierarchy.root
-    top = root.children[0]
-    hi = clusterer.hierarchy
-    second = top.children
-    cluster_a = hi.get_cluster_leaves(second[0])
-    cluster_a = [n.center for n in cluster_a]
-    cluster_b = hi.get_cluster_leaves(second[1])
-    cluster_b = [n.center for n in cluster_b]
+    #     initializing with array([ 0.7]) and array([ 0.3])
+    # processing array([ 0.6])
+    points = [np.array(x) for x in [0.7, 0.3, 0.6]]
+    clusterer = IHAClusterer(points)
+    clusterer.cluster()
 
-    print("Found clusters:\n")
-    print("A: ")
-    print(cluster_a)
-    print("\nB: ")
-    print(cluster_b)
+    import ipdb; ipdb.set_trace()
+    # clusterer = test_2_clusters_1_dimension()
+    # root = clusterer.hierarchy.root
+    # top = root.children[0]
+    # hi = clusterer.hierarchy
+    # second = top.children
+    # cluster_a = second[0].get_cluster_leaves()
+    # cluster_a = [n.center for n in cluster_a]
+    # cluster_b = second[1].get_cluster_leaves()
+    # cluster_b = [n.center for n in cluster_b]
+
+    # import ipdb; ipdb.set_trace()
+    # print("Found clusters:\n")
+    # print("A: ")
+    # print(cluster_a)
+    # print("\nB: ")
+    # print(cluster_b)
