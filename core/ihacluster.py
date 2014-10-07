@@ -17,7 +17,7 @@ class Node(object):
     @classmethod
     def init(cls, size):
         cls.size = size
-        m_nodes = 2 * size - 1 # maximum number of nodes in the hierarchy
+        m_nodes = 3 * size - 1 # maximum number of nodes in the hierarchy # TODO: figure this out
         n_distances = m_nodes * (m_nodes + 1) / 2 # maximum number of cached distances     
         cls.nodes = []  # a list that will hold all the nodes created
         cls.distances = -1 * np.ones( n_distances ) # A *condensed* matrix for distances between cluster centers
@@ -25,6 +25,13 @@ class Node(object):
     @classmethod
     def get(cls, id):
         return cls.nodes[id]
+
+    def __repr__(self):
+        return "%s %d" % (str(type(self)).split(".")[1], self.id)
+
+    def delete(self):
+        Node.nodes[self.id] = None
+        # TODO: handle id reuse
 
     def __init__(self, parent=None):
         """
@@ -117,9 +124,12 @@ class ClusterNode(Node):
         for ch in children:
             ch.parent = self
 
-        self.center = scipy.mean([c.center for c in children], axis=0)
+        if children:
+            self.center = scipy.mean([c.center for c in children], axis=0)
+        else:
+            self.center = None
         # ndp representation
-        if len(children) == 1:
+        if len(children) <= 1: # can only be zero when invoked in split
             self.nsiblings = []
             self.mu = 0
             self.sigma = 0
@@ -168,6 +178,7 @@ class ClusterNode(Node):
             self.sigma = scipy.std(self.ndists)
 
     def remove_child(self, child):
+        child.parent = None
         nchildren = len(self.children)
         if nchildren == 1:
             self.center = None
@@ -199,7 +210,6 @@ class ClusterNode(Node):
                 self.nsiblings = []
                 self.mu = 0
                 self.sigma = 0
-
 
     def split_children(self, mi, mj):
         """
@@ -238,7 +248,7 @@ class ClusterNode(Node):
 
         si_nsiblings = [Node.get(nsibling_ids_by_id[id]) for id in si_ids]
         sj_nsiblings = [Node.get(nsibling_ids_by_id[id]) for id in sj_ids]
-
+        
         # create new nodes n1 and n2 with the split data
         ni = ClusterNode(children=si_nodes, ndists=si_ndists, nsiblings=si_nsiblings)
         ni.add_child(mi)
@@ -257,7 +267,6 @@ class ClusterNode(Node):
         i = np.argmin(dists)
 
         return self.children[i], dists[i]
-
 
     def get_closest_children(self):
         """
@@ -310,21 +319,20 @@ class Hierarchy(object):
         leaf2 = LeafNode(vec2)
         self.root = ClusterNode(children=[leaf1, leaf2])
         self.size = size
-        self.leaves = [leaf1.id, leaf2.id] # Indices of leaf nodes
+        self.leaves = [leaf1, leaf2] # Indices of leaf nodes
 
     def incorporate(self, vec):
-        # import ipdb; ipdb.set_trace()
         new_leaf = LeafNode(vec=vec)
-        closest_leaf, d = self.get_closest_leaf(new_leaf)
+        closest_leaf, dist = self.get_closest_leaf(new_leaf)
 
         current = closest_leaf.parent
         nchild = closest_leaf
         found_host = None
         while current and not found_host:
-            if d >= current.lower_limit() and d <= current.upper_limit():
+            if dist >= current.lower_limit() and dist <= current.upper_limit():
                 self.ins_node(current, new_leaf)
                 found_host = current
-            elif d < current.lower_limit():
+            elif dist < current.lower_limit():
                 for ch in current.children:
                     if new_leaf.forms_lower_dense_region(ch) or type(nchild) is LeafNode:
                         self.ins_hierarchy(nchild, new_leaf)
@@ -333,7 +341,7 @@ class Hierarchy(object):
                 next = current.parent
                 if next:
                     current = next
-                    nchild, d = current.get_nearest_cluster_child(new_leaf)
+                    nchild, dist = current.get_nearest_cluster_child(new_leaf)
                 else: # reached top level
                     break
 
@@ -344,7 +352,7 @@ class Hierarchy(object):
         else:
             print("host not found")
             self.ins_hierarchy(current, new_leaf)
-        self.leaves.append(new_leaf.id)
+        self.leaves.append(new_leaf)
 
     def restructure_hierarchy(self, host_node):
         """Algorithm Hierarchy Restructuring:
@@ -404,7 +412,6 @@ class Hierarchy(object):
         if len(node.children) >= 2:
             mi, mj, d = node.get_farthest_children()
             if d > node.upper_limit():
-                import ipdb; ipdb.set_trace()
                 ni, nj = self.split(node, mi, mj)
                 self.repair_homogeneity(ni)
                 self.repair_homogeneity(nj)
@@ -491,16 +498,9 @@ class Hierarchy(object):
         """
             returns closest leaf node and the distance to it
         """
-        mdist = np.inf
-        cleaf = None
-        for i in self.leaves:
-            leaf = Node.nodes[i]
-            dist = Node.get_distance(leaf, node)
-            if dist < mdist:
-                mdist = dist
-                cleaf = leaf
-
-        return leaf, mdist
+        dists = np.array([Node.get_distance(leaf, node) for leaf in self.leaves])
+        i = np.argmin(dists)
+        return self.leaves[i], dists[i]
 
     #
     # Restructuring operators
@@ -540,12 +540,14 @@ class Hierarchy(object):
             form a nearest distance edge
         """
         nn = nk.parent
-        n1, n2 = nk.split_children(mi, mj)
+        ni, nj = nk.split_children(mi, mj)
         nn.remove_child(nk)
-        nn.add_child(n1)
-        nn.add_child(n2)
+        nn.add_child(ni)
+        nn.add_child(nj)
         # TODO: implement delete
-        # nk.delete()
+        nk.delete()
+
+        return ni, nj
 
 
 class IHAClusterer(object):
@@ -597,24 +599,22 @@ def test_2_clusters_1_dimension():
 if __name__ == '__main__':
     #     initializing with array([ 0.7]) and array([ 0.3])
     # processing array([ 0.6])
-    points = [np.array(x) for x in [0.7, 0.3, 0.6]]
-    clusterer = IHAClusterer(points)
-    clusterer.cluster()
+    # points = [np.array(x) for x in [0.7, 0.3, 0.6]]
+    # clusterer = IHAClusterer(points)
+    # clusterer.cluster()
 
-    import ipdb; ipdb.set_trace()
-    # clusterer = test_2_clusters_1_dimension()
-    # root = clusterer.hierarchy.root
-    # top = root.children[0]
-    # hi = clusterer.hierarchy
-    # second = top.children
-    # cluster_a = second[0].get_cluster_leaves()
-    # cluster_a = [n.center for n in cluster_a]
-    # cluster_b = second[1].get_cluster_leaves()
-    # cluster_b = [n.center for n in cluster_b]
+    clusterer = test_2_clusters_1_dimension()
+    root = clusterer.hierarchy.root
+    top = root.children[0]
+    hi = clusterer.hierarchy
+    second = top.children
+    cluster_a = second[0].get_cluster_leaves()
+    cluster_a = [n.center for n in cluster_a]
+    cluster_b = second[1].get_cluster_leaves()
+    cluster_b = [n.center for n in cluster_b]
 
-    # import ipdb; ipdb.set_trace()
-    # print("Found clusters:\n")
-    # print("A: ")
-    # print(cluster_a)
-    # print("\nB: ")
-    # print(cluster_b)
+    print("Found clusters:\n")
+    print("A: ")
+    print(cluster_a)
+    print("\nB: ")
+    print(cluster_b)
