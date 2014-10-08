@@ -57,12 +57,21 @@ class Node(object):
                 points += ch.get_cluster_leaves()
             return points
 
+    def get_siblings(self):
+        if self.parent:
+            return [ch for ch in self.parent.children if ch.id != self.id]
+        else:
+            return []
+
     #
     # Distance functions
     #
     @staticmethod
     def get_distance(ni, nj, update=False):
-        i, j = sorted((ni.id, nj.id))
+        try:
+            i, j = sorted((ni.id, nj.id))
+        except Exception:
+            import ipdb; ipdb.set_trace()
         if i == j:
             return 0.0
         else:
@@ -345,7 +354,6 @@ class Hierarchy(object):
             else: # reached top level
                 break
 
-        import ipdb; ipdb.set_trace()
         print("host search finished")
         if found_host: # node is top level cluster
             print("host found")
@@ -372,8 +380,7 @@ class Hierarchy(object):
         while current:
             parent = current.parent
             if not current.is_root():
-                siblings = parent.children
-                misplaced = [s for s in siblings if not s.forms_lower_dense_region(current)]
+                misplaced = [s for s in current.get_siblings() if not s.forms_lower_dense_region(current)]
                 for node in misplaced:
                     self.demote(current, node)
 
@@ -477,22 +484,24 @@ class Hierarchy(object):
         current_level = [root]
         root_label = "%.2f" % root.center
         G.add_node(root_label)
+        pos = {}
+        pos[root_label] = np.array([root.center, 1.0])
+        n_level = 0
         while current_level:
             next_level = []
+            n_level += 1
             for n in current_level:
                 n_label = "%.2f" % n.center
                 for ch in n.children:
                     ch_label = "%.2f" % ch.center
                     G.add_node(ch_label)
+                    pos[ch_label] = np.array([ch.center, 1.0 - 0.1 * n_level])
                     G.add_edge(n_label, ch_label)
                     if type(ch) == ClusterNode:
                         next_level.append(ch)
             current_level = next_level
 
         plt.title("IHAC hierarchy")
-        # pos = nx.graphviz_layout(tree, prog='dot')
-        # nx.draw(tree, pos)
-        pos = nx.spring_layout(G)
         nx.draw_networkx(G, pos, with_labels=True, arrows=True)
         plt.show()
 
@@ -541,12 +550,13 @@ class Hierarchy(object):
             mi and mj must be children of nk and
             form a nearest distance edge
         """
+        import ipdb; ipdb.set_trace()
         nn = nk.parent
         ni, nj = nk.split_children(mi, mj)
         nn.remove_child(nk)
         nn.add_child(ni)
         nn.add_child(nj)
-        # TODO: implement delete
+        import ipdb; ipdb.set_trace()
         nk.delete()
 
         return ni, nj
@@ -595,30 +605,31 @@ def test_2_clusters_1_dimension():
     # apply clustering
     clusterer = IHAClusterer(points)
     clusterer.cluster()
-    return clusterer
+    root = clusterer.hierarchy.root
+    top = root.children[0]
+    hi = clusterer.hierarchy
+    second = top.children
+    cluster_a = second[0].get_cluster_leaves()
+    cluster_a = [n.center for n in cluster_a]
+    cluster_b = second[1].get_cluster_leaves()
+    cluster_b = [n.center for n in cluster_b]
+
+    print("Found clusters:\n")
+    print("A: ")
+    print(cluster_a)
+    print("\nB: ")
+    print(cluster_b)
 
 
-if __name__ == '__main__':
-    #     initializing with array([ 0.7]) and array([ 0.3])
+def test_3_points():
+    # initializing with array([ 0.7]) and array([ 0.3])
     # processing array([ 0.6])
     points = [np.array(x) for x in [0.7, 0.3, 0.6]]
     clusterer = IHAClusterer(points)
     clusterer.cluster()
+    clusterer.hierarchy.visualize()
 
-    import ipdb; ipdb.set_trace()
 
-    # clusterer = test_2_clusters_1_dimension()
-    # root = clusterer.hierarchy.root
-    # top = root.children[0]
-    # hi = clusterer.hierarchy
-    # second = top.children
-    # cluster_a = second[0].get_cluster_leaves()
-    # cluster_a = [n.center for n in cluster_a]
-    # cluster_b = second[1].get_cluster_leaves()
-    # cluster_b = [n.center for n in cluster_b]
-
-    # print("Found clusters:\n")
-    # print("A: ")
-    # print(cluster_a)
-    # print("\nB: ")
-    # print(cluster_b)
+if __name__ == '__main__':
+    # test_3_points()
+    test_2_clusters_1_dimension()
