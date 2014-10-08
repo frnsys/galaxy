@@ -68,10 +68,7 @@ class Node(object):
     #
     @staticmethod
     def get_distance(ni, nj, update=False):
-        try:
-            i, j = sorted((ni.id, nj.id))
-        except Exception:
-            import ipdb; ipdb.set_trace()
+        i, j = sorted((ni.id, nj.id))
         if i == j:
             return 0.0
         else:
@@ -143,6 +140,7 @@ class ClusterNode(Node):
             self.nsiblings = []
             self.mu = 0
             self.sigma = 0
+            self.ndists = [0.0]
         else:
             if ndists: # in case of split, we reuse distances
                 self.ndists = ndists
@@ -169,7 +167,8 @@ class ClusterNode(Node):
             new_child.parent = self
             # update distances to new center
             for node in Node.nodes:
-                Node.get_distance(self, node, update=True)
+                if node: # might have been deleted
+                    Node.get_distance(self, node, update=True)
             # update ndp representation and find nearest sibling
             # for new child new_child
             ns = None
@@ -201,8 +200,9 @@ class ClusterNode(Node):
             index = [ch.id for ch in self.children].index(child.id)
             del self.children[index]
             del self.nsiblings[index]
-            for n in Node.nodes:
-                Node.get_distance(self, n, update=True)
+            for node in Node.nodes:
+                if node:
+                    Node.get_distance(self, node, update=True)
 
             if len(self.children) > 1:
                 # update ndp representation
@@ -550,13 +550,14 @@ class Hierarchy(object):
             mi and mj must be children of nk and
             form a nearest distance edge
         """
-        import ipdb; ipdb.set_trace()
-        nn = nk.parent
         ni, nj = nk.split_children(mi, mj)
-        nn.remove_child(nk)
-        nn.add_child(ni)
-        nn.add_child(nj)
-        import ipdb; ipdb.set_trace()
+        if nk.is_root():
+            self.root = ClusterNode(children=[ni, nj])
+        else:
+            nn = nk.parent        
+            nn.remove_child(nk)
+            nn.add_child(ni)
+            nn.add_child(nj)
         nk.delete()
 
         return ni, nj
@@ -606,9 +607,8 @@ def test_2_clusters_1_dimension():
     clusterer = IHAClusterer(points)
     clusterer.cluster()
     root = clusterer.hierarchy.root
-    top = root.children[0]
     hi = clusterer.hierarchy
-    second = top.children
+    second = root.children
     cluster_a = second[0].get_cluster_leaves()
     cluster_a = [n.center for n in cluster_a]
     cluster_b = second[1].get_cluster_leaves()
@@ -619,6 +619,8 @@ def test_2_clusters_1_dimension():
     print(cluster_a)
     print("\nB: ")
     print(cluster_b)
+
+    hi.visualize()
 
 
 def test_3_points():
