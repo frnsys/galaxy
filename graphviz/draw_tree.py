@@ -4,7 +4,7 @@ G = nx.DiGraph()
 
 G.add_node("ROOT")
 
-for i in xrange(5):
+for i in range(5):
     G.add_node("Child_%i" % i)
     G.add_node("Grandchild_%i" % i)
     G.add_node("Greatgrandchild_%i" % i)
