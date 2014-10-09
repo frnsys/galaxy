@@ -200,6 +200,7 @@ class ClusterNode(Node):
             index = [ch.id for ch in self.children].index(child.id)
             del self.children[index]
             del self.nsiblings[index]
+            del self.ndists[index]
             for node in Node.nodes:
                 if node:
                     Node.get_distance(self, node, update=True)
