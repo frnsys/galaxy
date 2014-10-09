@@ -356,12 +356,12 @@ class Hierarchy(object):
             else: # reached top level
                 break
 
-        print("host search finished")
+        # print("host search finished")
         if found_host: # node is top level cluster
-            print("host found")
+            # print("host found")
             self.restructure_hierarchy(found_host)
         else:
-            print("host not found")
+            # print("host not found")
             self.ins_hierarchy(current, new_leaf)
         self.leaves.append(new_leaf)
 
@@ -570,14 +570,14 @@ class IHAClusterer(object):
         size = len(vecs)
         Node.init(size)
         self.vecs = vecs
-        print("initializing with %s and %s" % (repr(vecs[0]), repr(vecs[1])))
+        # print("initializing with %s and %s" % (repr(vecs[0]), repr(vecs[1])))
         self.hierarchy = Hierarchy(len(vecs), vecs[0], vecs[1])
 
     def cluster(self):
         for vec in self.vecs[2:]:
-            print("processing " + repr(vec))
+            # print("processing " + repr(vec))
             self.hierarchy.incorporate(vec)
-            print("OK")
+            # print("OK")
 
     def get_labels(self):
         labels = self.hierarchy.fcluster()
