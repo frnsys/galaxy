@@ -625,6 +625,28 @@ def test_2_clusters_1_dimension():
     hi.visualize()
 
 
+def test_2level_clusters_1_dimension():
+    # create sample data
+    cluster_a1 = np.arange(0,0.4,0.01)
+    cluster_a2 = np.arange(0.6,1,0.01)
+    cluster_b1 = np.arange(2,2.4,0.01)
+    cluster_b2 = np.arange(2.6,3,0.01)
+
+    points = np.append(cluster_a1, cluster_a2)
+    points = np.append(points, cluster_b1)
+    points = np.append(points, cluster_b2)
+
+    np.random.shuffle(points)
+    points = [np.array([p]) for p in points]
+
+    # apply clustering
+    clusterer = IHAClusterer(points)
+    clusterer.cluster()
+    hi = clusterer.hierarchy
+
+    hi.visualize()
+
+
 def test_3_points():
     # initializing with array([ 0.7]) and array([ 0.3])
     # processing array([ 0.6])
@@ -636,4 +658,4 @@ def test_3_points():
 
 if __name__ == '__main__':
     # test_3_points()
-    test_2_clusters_1_dimension()
+    test_2level_clusters_1_dimension()
