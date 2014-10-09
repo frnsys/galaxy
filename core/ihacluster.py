@@ -584,8 +584,6 @@ class IHAClusterer(object):
         return labels
 
 
-
-
 # Test code
 def create_2_1dim_clusters():
     cluster_a = np.arange(0,1,0.1)
