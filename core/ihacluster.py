@@ -344,7 +344,7 @@ class Hierarchy(object):
                 found_host = current; break
             elif dist < current.lower_limit():
                 for ch in current.children:
-                    if new_leaf.forms_lower_dense_region(ch) or type(nchild) is LeafNode:
+                    if new_leaf.forms_lower_dense_region(ch) or type(ch) is LeafNode:
                         self.ins_hierarchy(nchild, new_leaf)
                         found_host = nchild.parent; break # new cluster
             next = current.parent

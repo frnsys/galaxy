@@ -114,7 +114,6 @@ def cluster(filepath, pg):
     vecs = weight_vectors(vecs, weights=pg_['weights'])
 
     pg_.pop('weights', None)
-
     labels_pred = hac(vecs, **pg_)
 
     if hasattr(pg['metric'], '__call__'): pg['metric'] = pg['metric'].__name__
