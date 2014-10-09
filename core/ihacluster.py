@@ -17,7 +17,8 @@ class Node(object):
     @classmethod
     def init(cls, size):
         cls.size = size
-        m_nodes = 3 * size - 1 # maximum number of nodes in the hierarchy # TODO: figure this out
+        m_nodes = 4 * size - 1 # maximum number of nodes in the hierarchy 
+                    # TODO: figure out a good bound for this, or use a heap structure
         n_distances = m_nodes * (m_nodes + 1) / 2 # maximum number of cached distances     
         cls.nodes = []  # a list that will hold all the nodes created
         cls.distances = -1 * np.ones( n_distances ) # A *condensed* matrix for distances between cluster centers
