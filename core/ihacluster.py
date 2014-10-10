@@ -17,7 +17,7 @@ class Node(object):
     @classmethod
     def init(cls, size):
         cls.size = size
-        m_nodes = 6 * size - 1 # maximum number of nodes in the hierarchy 
+        m_nodes = 10 * size - 1 # maximum number of nodes in the hierarchy 
                     # TODO: figure out a good bound for this, or use a heap structure
         n_distances = m_nodes * (m_nodes + 1) / 2 # maximum number of cached distances     
         cls.nodes = []  # a list that will hold all the nodes created
@@ -29,7 +29,16 @@ class Node(object):
 
     def __repr__(self):
         node_type = str(type(self)).split(".")[1].split("'")[0]
-        return "%s [%d] (%s)" % (node_type, self.id, "%.2f" % self.center)
+        center_str = "[" + ", ".join(["%.2f" % x for x in self.center]) + "]"
+        return "%s [%d] (%s)" % (node_type, self.id, center_str)
+
+    def get_plot_label(self):
+        if self.is_root():
+            return "ROOT"
+        elif self.center.shape == (1,):
+            return "%.2f" % self.center
+        else:
+            return str(self.id)
 
     def delete(self):
         Node.nodes[self.id] = None
@@ -157,7 +166,7 @@ class ClusterNode(Node):
                     self.ndists.append(dists[j])
             self.mu = scipy.mean(self.ndists)
             self.sigma = scipy.std(self.ndists)
-
+        
     def add_child(self, new_child):
         n = len(self.children)
         if n < 2:
@@ -186,6 +195,7 @@ class ClusterNode(Node):
             self.ndists.append(ns_dist)
             self.mu = scipy.mean(self.ndists)
             self.sigma = scipy.std(self.ndists)
+
 
     def remove_child(self, child):
         child.parent = None
@@ -223,6 +233,7 @@ class ClusterNode(Node):
                 self.mu = 0
                 self.sigma = 0
 
+
     def split_children(self, mi, mj):
         """
             mi and mj must be children of self 
@@ -241,7 +252,12 @@ class ClusterNode(Node):
         graph = nx.Graph()
         graph.add_edges_from(edges)
         graph.remove_edge(mi.id, mj.id)
-        s1_ids, s2_ids = list(nx.connected_components(graph))
+
+        try:
+            s1_ids, s2_ids = list(nx.connected_components(graph))
+        except Exception:
+            import ipdb; ipdb.set_trace()
+
         if mi.id in s1_ids:
             si_ids, sj_ids = s1_ids, s2_ids
         else:
@@ -479,12 +495,12 @@ class Hierarchy(object):
             current_level = next_level
         return scipy.mean(level_averages)
 
-    def visualize(self):
+    def visualize(self, onedim=False):
         import matplotlib.pyplot as plt
         G = nx.DiGraph()
         root = self.root
         current_level = [root]
-        root_label = "%.2f" % root.center
+        root_label = root.get_plot_label()
         G.add_node(root_label)
         pos = {}
         pos[root_label] = np.array([root.center, 1.0])
@@ -493,18 +509,22 @@ class Hierarchy(object):
             next_level = []
             n_level += 1
             for n in current_level:
-                n_label = "%.2f" % n.center
+                n_label = n.get_plot_label()
                 for ch in n.children:
-                    ch_label = "%.2f" % ch.center
+                    ch_label = ch.get_plot_label()
                     G.add_node(ch_label)
                     pos[ch_label] = np.array([ch.center, 1.0 - 0.1 * n_level])
                     G.add_edge(n_label, ch_label)
                     if type(ch) == ClusterNode:
                         next_level.append(ch)
             current_level = next_level
-
+        
         plt.title("IHAC hierarchy")
-        nx.draw_networkx(G, pos, with_labels=True, arrows=True)
+        if not onedim:
+            pos = nx.spring_layout(G)
+
+        nx.draw(G, pos, with_labels=True, arrows=True)
+
         plt.show()
 
     def get_closest_leaf(self, node):
@@ -566,22 +586,29 @@ class Hierarchy(object):
 
 
 class IHAClusterer(object):
-    def __init__(self, vecs):
-        size = len(vecs)
-        Node.init(size)
+    def __init__(self):
+        pass
+
+    def fit(self, vecs):
+        self.size = len(vecs)
+        Node.init(self.size)
         self.vecs = vecs
         # print("initializing with %s and %s" % (repr(vecs[0]), repr(vecs[1])))
         self.hierarchy = Hierarchy(len(vecs), vecs[0], vecs[1])
 
-    def cluster(self):
         for vec in self.vecs[2:]:
             # print("processing " + repr(vec))
             self.hierarchy.incorporate(vec)
             # print("OK")
 
+        self.get_labels()
+
+
     def get_labels(self):
-        labels = self.hierarchy.fcluster()
-        return labels
+        _, dict_labels = self.hierarchy.fcluster()
+        leaf_ids = sorted([l.id for l in self.hierarchy.leaves])
+        self.labels_ = np.array([dict_labels[lid] for lid in leaf_ids])
+        return self.labels_
 
 
 # Test code
@@ -604,8 +631,8 @@ def test_2_clusters_1_dimension():
     # create sample data
     points = create_2_1dim_clusters()
     # apply clustering
-    clusterer = IHAClusterer(points)
-    clusterer.cluster()
+    clusterer = IHAClusterer()
+    clusterer.fit(points)
     root = clusterer.hierarchy.root
     hi = clusterer.hierarchy
     second = root.children
@@ -638,8 +665,8 @@ def test_2level_clusters_1_dimension():
     points = [np.array([p]) for p in points]
 
     # apply clustering
-    clusterer = IHAClusterer(points)
-    clusterer.cluster()
+    clusterer = IHAClusterer()
+    clusterer.fit(points)
     hi = clusterer.hierarchy
 
     hi.visualize()
@@ -649,11 +676,37 @@ def test_3_points():
     # initializing with array([ 0.7]) and array([ 0.3])
     # processing array([ 0.6])
     points = [np.array(x) for x in [0.7, 0.3, 0.6]]
-    clusterer = IHAClusterer(points)
-    clusterer.cluster()
+    clusterer = IHAClusterer()
+    clusterer.fit(points)
     clusterer.hierarchy.visualize()
+
+
+def test_3_clusters_2_dimensions():
+    from sklearn import datasets
+    from sklearn.preprocessing import StandardScaler
+
+    dataset = datasets.make_blobs(n_samples=40, random_state=8)
+    X, y = dataset
+    # normalize dataset for easier parameter selection
+    X = StandardScaler().fit_transform(X)
+
+    ihac = IHAClusterer()
+    ihac.fit(X)
+    # ihac.hierarchy.visualize()
+
+    import ipdb; ipdb.set_trace()
+
+    y_pred = ihac.labels_.astype(np.int)
+
+    # import ipdb; ipdb.set_trace()
+    import matplotlib.pyplot as plt
+    colors = np.array([x for x in 'bgrcmykbgrcmykbgrcmykbgrcmyk'])
+    colors = np.hstack([colors] * 20)
+    plt.scatter(X[:, 0], X[:, 1], color=colors[y_pred].tolist(), s=10)
+    plt.show()
+
 
 
 if __name__ == '__main__':
     # test_3_points()
-    test_2level_clusters_1_dimension()
+    test_3_clusters_2_dimensions()
