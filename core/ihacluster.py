@@ -9,6 +9,9 @@ import networkx as nx
 
 DISTANCE = 'euclidean'
 
+def n_pairs(m):
+    return (m * (m - 1)) / 2
+
 def distance(vec1, vec2):
     if DISTANCE == 'euclidean':
         return euclidean(vec1, vec2)
@@ -16,12 +19,38 @@ def distance(vec1, vec2):
 class Node(object):
     @classmethod
     def init(cls, size):
-        cls.size = size
-        m_nodes = 6 * size - 1 # maximum number of nodes in the hierarchy 
-        n_distances = m_nodes * (m_nodes + 1) / 2 # maximum number of cached distances
-        cls.available_ids = set(range(m_nodes))   
+        cls.size = size # the number of leaf nodes the structure can handle
+        cls.max_n_nodes = 4 * size - 1 # maximum number of nodes in the hierarchy
+                                   # if every cluster node has at least two children
+        n_distances = n_pairs(cls.max_n_nodes) # maximum number of cached distances
+        cls.available_ids = set(range(cls.max_n_nodes))   
         cls.nodes = {}  # a dictionary to hold all the nodes created indexed by id
-        cls.distances = -1 * np.ones( n_distances ) # A *condensed* matrix for distances between cluster centers
+        cls.distances = -1 * np.ones(n_distances) # A *condensed* matrix for distances between cluster centers
+    
+    @classmethod
+    def enlarge_point_number(cls, extra_size):
+        """
+            Enlarge data structures to handle more
+            points
+        """
+        cls.size += + extra_size
+        new_max_n_nodes = 2 * new_size - 1
+        extra_n_nodes = new_max_n_nodes - cls.max_n_nodes
+        cls.enlarge_node_number(extra_n_nodes)
+
+    @classmethod
+    def enlarge_node_number(cls, extra_n_nodes=100):
+        """
+            It is automatically called if for some reason
+            the algorithm needs more nodes than we have
+            reserved space for
+        """
+        cls.available_ids.update(set(range(cls.max_n_nodes, cls.max_n_nodes + extra_n_nodes)))
+        old_n_distances = n_pairs(cls.max_n_nodes)
+        cls.max_n_nodes += extra_n_nodes
+        new_n_distances = n_pairs(cls.max_n_nodes)
+        extra_n_distances = new_n_distances - old_n_distances
+        cls.distances = np.append(cls.distances, -1 * np.ones(extra_n_distances))
 
     @classmethod
     def get(cls, id):
@@ -54,6 +83,8 @@ class Node(object):
             - a list of children, for a cluster node
         """
         self.parent = parent
+        if len(Node.available_ids) == 0:
+            Node.enlarge_node_number()
         self.id = Node.available_ids.pop()
         Node.nodes[self.id] = self
 
@@ -699,7 +730,7 @@ def test_3_clusters_2_dimensions():
     from sklearn import datasets
     from sklearn.preprocessing import StandardScaler
 
-    dataset = datasets.make_blobs(n_samples=100, random_state=8)
+    dataset = datasets.make_blobs(n_samples=20, random_state=8)
     X, y = dataset
     # normalize dataset for easier parameter selection
     X = StandardScaler().fit_transform(X)
