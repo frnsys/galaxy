@@ -160,8 +160,8 @@ class ClusterNode(Node):
         # ndp representation
         if len(children) <= 1: # can only be zero when invoked in split
             self.nsiblings = []
-            self.mu = 0
-            self.sigma = 0
+            self.ndist_mean = 0
+            self.ndist_std = 0
             self.ndists = [0.0]
         else:
             if ndists: # in case of split, we reuse distances
@@ -176,8 +176,8 @@ class ClusterNode(Node):
                     j = np.argmin(dists)
                     self.nsiblings.append(children[j])
                     self.ndists.append(dists[j])
-            self.mu = scipy.mean(self.ndists)
-            self.sigma = scipy.std(self.ndists)
+            self.ndist_mean = scipy.mean(self.ndists)
+            self.ndist_std = scipy.std(self.ndists)
         
     def add_child(self, new_child):
         n = len(self.children)
@@ -204,8 +204,8 @@ class ClusterNode(Node):
                     ns = ch
             self.nsiblings.append(ns)
             self.ndists.append(ns_dist)
-            self.mu = scipy.mean(self.ndists)
-            self.sigma = scipy.std(self.ndists)
+            self.ndist_mean = scipy.mean(self.ndists)
+            self.ndist_std = scipy.std(self.ndists)
 
 
     def remove_child(self, child):
@@ -236,12 +236,12 @@ class ClusterNode(Node):
                         ns = self.children[j]
                         self.nsiblings[i] = ns
                         self.ndists[i] = dists[j]
-                self.mu = scipy.mean(self.ndists)
-                self.sigma = scipy.std(self.ndists)
+                self.ndist_mean = scipy.mean(self.ndists)
+                self.ndist_std = scipy.std(self.ndists)
             else:
                 self.nsiblings = []
-                self.mu = 0
-                self.sigma = 0
+                self.ndist_mean = 0
+                self.ndist_std = 0
 
 
     def split_children(self, mi, mj):
@@ -333,14 +333,14 @@ class ClusterNode(Node):
         # (for example, after a split)
         n = len(self.children)
         if n > 2:
-            return self.mu - self.sigma
+            return self.ndist_mean - self.ndist_std
         else:
             return (2.0 / 3) * self.ndists[0]
 
     def upper_limit(self):
         n = len(self.children)
         if n > 2:
-            return self.mu + self.sigma
+            return self.ndist_mean + self.ndist_std
         else:
             return 1.5 * self.ndists[0]
 
@@ -482,7 +482,7 @@ class Hierarchy(object):
                 if type(n) is LeafNode:
                     new_cluster = [n]
                 if type(n) is ClusterNode:
-                    if n.sigma <= distance_threshold:
+                    if n.ndist_mean <= distance_threshold:
                         new_cluster = n.get_cluster_leaves()
                     else:
                         next_level += n.children
@@ -499,7 +499,7 @@ class Hierarchy(object):
         current_level = [self.root]
         while current_level:
             next_level = []
-            level_averages.append(scipy.mean([n.sigma for n in current_level]))
+            level_averages.append(scipy.mean([n.ndist_mean for n in current_level]))
             for n in current_level:
                 next_level += [ch for ch in n.children if type(ch) is ClusterNode]
             current_level = next_level
