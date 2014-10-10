@@ -47,7 +47,6 @@ class Node(object):
         Node.available_ids.add(self.id)
         del Node.nodes[self.id]
 
-
     def __init__(self, parent=None):
         """
             A new node is created by passing either:
@@ -207,7 +206,6 @@ class ClusterNode(Node):
             self.ndist_mean = scipy.mean(self.ndists)
             self.ndist_std = scipy.std(self.ndists)
 
-
     def remove_child(self, child):
         child.parent = None
         nchildren = len(self.children)
@@ -242,7 +240,6 @@ class ClusterNode(Node):
                 self.nsiblings = []
                 self.ndist_mean = 0
                 self.ndist_std = 0
-
 
     def split_children(self, mi, mj):
         """
@@ -345,7 +342,43 @@ class ClusterNode(Node):
             return 1.5 * self.ndists[0]
 
     def is_root(self):
-        return self.parent is None                
+        return self.parent is None
+
+    def visualize(self, onedim=False):
+        import matplotlib.pyplot as plt
+
+        current_level = [self]
+        root_label = self.get_plot_label()
+
+        G = nx.DiGraph()
+        G.add_node(root_label)
+        if onedim:
+            pos = {}
+            pos[root_label] = np.array([root.center, 1.0])
+        n_level = 0
+        while current_level:
+            next_level = []
+            n_level += 1
+            for n in current_level:
+                n_label = n.get_plot_label()
+                for ch in n.children:
+                    ch_label = ch.get_plot_label()
+                    G.add_node(ch_label)
+                    if onedim:
+                        pos[ch_label] = np.array([ch.center, 1.0 - 0.1 * n_level])
+                    G.add_edge(n_label, ch_label)
+                    if type(ch) == ClusterNode:
+                        next_level.append(ch)
+            current_level = next_level
+        
+        plt.title("IHAC hierarchy")
+        if not onedim:
+            pos = nx.spring_layout(G)
+
+        nx.draw(G, pos, with_labels=True, arrows=True)
+
+        plt.show()
+               
 
 
 class Hierarchy(object):
@@ -506,36 +539,7 @@ class Hierarchy(object):
         return scipy.mean(level_averages)
 
     def visualize(self, onedim=False):
-        import matplotlib.pyplot as plt
-        G = nx.DiGraph()
-        root = self.root
-        current_level = [root]
-        root_label = root.get_plot_label()
-        G.add_node(root_label)
-        pos = {}
-        pos[root_label] = np.array([root.center, 1.0])
-        n_level = 0
-        while current_level:
-            next_level = []
-            n_level += 1
-            for n in current_level:
-                n_label = n.get_plot_label()
-                for ch in n.children:
-                    ch_label = ch.get_plot_label()
-                    G.add_node(ch_label)
-                    pos[ch_label] = np.array([ch.center, 1.0 - 0.1 * n_level])
-                    G.add_edge(n_label, ch_label)
-                    if type(ch) == ClusterNode:
-                        next_level.append(ch)
-            current_level = next_level
-        
-        plt.title("IHAC hierarchy")
-        if not onedim:
-            pos = nx.spring_layout(G)
-
-        nx.draw(G, pos, with_labels=True, arrows=True)
-
-        plt.show()
+        root = self.root.visualize(onedim=onedim)
 
     def get_closest_leaf(self, node):
         """
@@ -695,7 +699,7 @@ def test_3_clusters_2_dimensions():
     from sklearn import datasets
     from sklearn.preprocessing import StandardScaler
 
-    dataset = datasets.make_blobs(n_samples=40, random_state=8)
+    dataset = datasets.make_blobs(n_samples=100, random_state=8)
     X, y = dataset
     # normalize dataset for easier parameter selection
     X = StandardScaler().fit_transform(X)
@@ -703,8 +707,6 @@ def test_3_clusters_2_dimensions():
     ihac = IHAClusterer()
     ihac.fit(X)
     # ihac.hierarchy.visualize()
-
-    import ipdb; ipdb.set_trace()
 
     y_pred = ihac.labels_.astype(np.int)
 
