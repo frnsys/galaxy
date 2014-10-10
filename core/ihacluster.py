@@ -17,10 +17,10 @@ class Node(object):
     @classmethod
     def init(cls, size):
         cls.size = size
-        m_nodes = 10 * size - 1 # maximum number of nodes in the hierarchy 
-                    # TODO: figure out a good bound for this, or use a heap structure
-        n_distances = m_nodes * (m_nodes + 1) / 2 # maximum number of cached distances     
-        cls.nodes = []  # a list that will hold all the nodes created
+        m_nodes = 6 * size - 1 # maximum number of nodes in the hierarchy 
+        n_distances = m_nodes * (m_nodes + 1) / 2 # maximum number of cached distances
+        cls.available_ids = set(range(m_nodes))   
+        cls.nodes = {}  # a dictionary to hold all the nodes created indexed by id
         cls.distances = -1 * np.ones( n_distances ) # A *condensed* matrix for distances between cluster centers
 
     @classmethod
@@ -41,8 +41,12 @@ class Node(object):
             return str(self.id)
 
     def delete(self):
-        Node.nodes[self.id] = None
-        # TODO: handle id reuse
+        for node in Node.nodes.values():
+            Node.del_distance(self, node)
+
+        Node.available_ids.add(self.id)
+        del Node.nodes[self.id]
+
 
     def __init__(self, parent=None):
         """
@@ -50,9 +54,9 @@ class Node(object):
             - a vector point, in case of a leaf node
             - a list of children, for a cluster node
         """
-        Node.nodes.append(self)
-        self.id = len(Node.nodes) - 1
         self.parent = parent
+        self.id = Node.available_ids.pop()
+        Node.nodes[self.id] = self
 
     def get_cluster_leaves(self):
         """
@@ -90,6 +94,14 @@ class Node(object):
                 else:
                     Node.distances[pos] = distance(ni.center, nj.center)
             return Node.distances[pos]
+
+    @staticmethod
+    def del_distance(ni, nj):
+        i, j = sorted((ni.id, nj.id))
+        if i != j:
+            pos = int(j * (j - 1) / 2) + i
+            Node.distances[pos] = -1
+
 
     def forms_lower_dense_region(self, c):
         """
@@ -176,9 +188,8 @@ class ClusterNode(Node):
             self.children.append(new_child)
             new_child.parent = self
             # update distances to new center
-            for node in Node.nodes:
-                if node: # might have been deleted
-                    Node.get_distance(self, node, update=True)
+            for node in Node.nodes.values():
+                Node.get_distance(self, node, update=True)
             # update ndp representation and find nearest sibling
             # for new child new_child
             ns = None
@@ -212,9 +223,8 @@ class ClusterNode(Node):
             del self.children[index]
             del self.nsiblings[index]
             del self.ndists[index]
-            for node in Node.nodes:
-                if node:
-                    Node.get_distance(self, node, update=True)
+            for node in Node.nodes.values():
+                Node.get_distance(self, node, update=True)
 
             if len(self.children) > 1:
                 # update ndp representation
