@@ -24,7 +24,7 @@ def generate_points(num_clusters=2):
     # Generate num_clusters 1d clusters.
     points = np.array([])
     for i in range(num_clusters):
-        clus = np.arange(i, i+1, 0.1)
+        clus = np.arange(2 * i, 2 * i + 1, 0.1)
         points = np.append(points, clus)
     np.random.shuffle(points)
 
