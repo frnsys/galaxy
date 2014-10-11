@@ -93,13 +93,7 @@ class Node(object):
         Returns all the points inside the cluster represented by
         the node, i.e.: all the descendant leaf nodes
         """
-        if type(self) is LeafNode:
-            return [self]
-        elif type(self) is ClusterNode:
-            points = []
-            for ch in self.children:
-                points += ch.get_cluster_leaves()
-            return points
+        raise NotImplementedError
 
     def get_siblings(self):
         if self.parent:
@@ -164,6 +158,9 @@ class LeafNode(Node):
     def __init__(self, vec, parent=None):
         super(LeafNode, self).__init__(parent)
         self.center = vec
+
+    def get_cluster_leaves(self):
+        return [self]
 
     def is_root(self):
         return False
@@ -355,6 +352,12 @@ class ClusterNode(Node):
         mj = self.nsiblings[i]
         d = self.ndists[i]
         return mi, mj, d
+
+    def get_cluster_leaves(self):
+        points = []
+        for ch in self.children:
+            points += ch.get_cluster_leaves()
+        return points
 
     def lower_limit(self):
         # TODO: what happens in case of just one child? 
