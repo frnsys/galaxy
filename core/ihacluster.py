@@ -57,6 +57,12 @@ class Node(object):
     def get(cls, id):
         return cls.nodes[id]
 
+    @classmethod
+    def get_bad_nodes(cls):
+        cluster_nodes = [n for n in cls.nodes.values() if type(n) is ClusterNode]
+        return [n for n in cluster_nodes if len(n.children) == 1]
+
+
     def __repr__(self):
         node_type = str(type(self)).split(".")[1].split("'")[0]
         center_str = "[" + ", ".join(["%.2f" % x for x in self.center]) + "]"
@@ -317,10 +323,17 @@ class ClusterNode(Node):
         sj_nsiblings = [Node.get(nsibling_ids_by_id[id]) for id in sj_ids]
         
         # create new nodes n1 and n2 with the split data
-        ni = ClusterNode(children=si_nodes, ndists=si_ndists, nsiblings=si_nsiblings)
-        ni.add_child(mi)
-        nj = ClusterNode(children=sj_nodes, ndists=sj_ndists, nsiblings=sj_nsiblings)
-        nj.add_child(mj)
+        if len(si_nodes) > 0:
+            ni = ClusterNode(children=si_nodes, ndists=si_ndists, nsiblings=si_nsiblings)
+            ni.add_child(mi)
+        else:
+            ni = mi
+        
+        if len(sj_nodes) > 0:        
+            nj = ClusterNode(children=sj_nodes, ndists=sj_ndists, nsiblings=sj_nsiblings)
+            nj.add_child(mj)
+        else:
+            nj = mj
 
         return ni, nj
 
@@ -430,7 +443,6 @@ class Hierarchy(object):
         self.leaves = [leaf1, leaf2] # Indices of leaf nodes
 
     def incorporate(self, vec):
-        # import ipdb; ipdb.set_trace()
         new_leaf = LeafNode(vec=vec)
         closest_leaf, dist = self.get_closest_leaf(new_leaf)
 
@@ -462,8 +474,6 @@ class Hierarchy(object):
             # print("host not found")
             self.ins_hierarchy(current, new_leaf)
         self.leaves.append(new_leaf)
-
-        # import ipdb; ipdb.set_trace()
 
     def restructure_hierarchy(self, host_node):
         """Algorithm Hierarchy Restructuring:
@@ -524,9 +534,12 @@ class Hierarchy(object):
             if d > node.upper_limit():
                 # WARNING! split over nodes that are not nearest won't
                 # create two partitions as expected
+                # TODO: find ndist edge to perform this split
                 ni, nj = self.split(node, mi, mj)
-                self.repair_homogeneity(ni)
-                self.repair_homogeneity(nj)
+                if type(ni) is ClusterNode:
+                    self.repair_homogeneity(ni)
+                if type(nj) is ClusterNode:
+                    self.repair_homogeneity(nj)
 
     def resize(self):
         """
@@ -552,6 +565,7 @@ class Hierarchy(object):
         labels = {} # dictionary mapping leaf ids to cluster indices
         current_level = [self.root]
         while current_level:
+            import ipdb; ipdb.set_trace()
             next_level = []
             for n in current_level:
                 new_cluster = None
@@ -685,17 +699,16 @@ class IHAClusterer(object):
             self.hierarchy.incorporate(vec)
             # print("OK")
 
-        self.get_labels()
-
     def fit_more(self, vecs):
         Node.enlarge_point_number(len(vecs))
         for vec in vecs:
             # print("processing " + repr(vec))
             self.hierarchy.incorporate(vec)
             # print("OK")
-        self.get_labels()
         self.vecs += vecs
         self.size += len(vecs)
+        self.labels_ = None # reset labels
+
 
 
     def get_labels(self):
@@ -728,10 +741,13 @@ def test_no_cluster_node_with_single_cluster_child():
     clusterer = IHAClusterer()
     clusterer.fit(points_1)
     hi = clusterer.hierarchy
-    import ipdb; ipdb.set_trace()
+    bad_nodes = Node.get_bad_nodes()
+
     clusterer.fit_more(points_2)
+    bad_nodes = Node.get_bad_nodes()
     hi.visualize()
-    import ipdb; ipdb.set_trace()
+    # TODO: move to tests.py and add asserts
+    # bad_nodes must be empty
 
 
 def test_2_clusters_1_dimension():
