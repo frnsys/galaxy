@@ -663,6 +663,10 @@ class IHAClusterer(object):
             for name, val in data["self"].items():
                 setattr(self, name, val)
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> 26b96d019383655a1ae17085f8b195e099f047bf
     def fit(self, vecs):
         self.size = len(vecs)
         Node.init(self.size)
@@ -678,7 +682,10 @@ class IHAClusterer(object):
         self.get_labels()
 
     def fit_more(self, vecs):
+<<<<<<< HEAD
         Node.enlarge_point_number(len(vecs))
+=======
+>>>>>>> 26b96d019383655a1ae17085f8b195e099f047bf
         for vec in vecs:
             # print("processing " + repr(vec))
             self.hierarchy.incorporate(vec)
