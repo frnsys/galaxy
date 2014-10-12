@@ -281,11 +281,19 @@ class ClusterNode(Node):
 
     def split_children(self, mi, mj):
         """
-            mi and mj must be children of self 
-            connected by a nearest distance edge.
-            Children MST structure is broken in two
+            Splits the set of children of self
+            in two groups containing mi and mj
+
+            Children ndist MST structure is broken in two
             disjoint sets by removing the edge for mi and mj
             and new clusters are formed on those sets
+            (unless some of them contains just one element)
+
+            if mi and mj are connected by a nearest distance edge,
+            groups are formed by removing that edge.
+
+            Otherwise, we remove an edge near the middle
+            of the ndist-MST path joining them.
         """
         children_ids = [ch.id for ch in self.children]
         nsibling_ids = [ns.id for ns in self.nsiblings]
@@ -296,17 +304,32 @@ class ClusterNode(Node):
         edges = list(zip(children_ids, nsibling_ids))        
         graph = nx.Graph()
         graph.add_edges_from(edges)
-        graph.remove_edge(mi.id, mj.id)
+        
+        if graph.has_edge(mj.id, mi.id):
+            import ipdb; ipdb.set_trace()
+            graph.remove_edge(mi.id, mj.id)
+        else:
+            path = nx.shortest_path(graph, source=mi.id, target=mj.id)
+            half = int(len(path)/2)
+            graph.remove_edge(path[half], path[half + 1])
 
         try:
             s1_ids, s2_ids = list(nx.connected_components(graph))
+            if mi.id in s1_ids:
+                si_ids, sj_ids = s1_ids, s2_ids
+            else:
+                si_ids, sj_ids = s2_ids, s1_ids
         except Exception:
-            import ipdb; ipdb.set_trace()
-
-        if mi.id in s1_ids:
-            si_ids, sj_ids = s1_ids, s2_ids
-        else:
-            si_ids, sj_ids = s2_ids, s1_ids
+            # TODO: figure out why this happens
+            # more than one component:
+            # we isolate j and merge the other components into si
+            components = list(nx.connected_components(graph))
+            si_ids = []
+            for comp_ids in components:
+                if mj.id in comp_ids:
+                    sj_ids = comp_ids
+                else:
+                    si_ids += comp_ids
 
         # mi and mj could have their nearest sibling changed in
         # new clusters, so we add them separately
@@ -565,7 +588,6 @@ class Hierarchy(object):
         labels = {} # dictionary mapping leaf ids to cluster indices
         current_level = [self.root]
         while current_level:
-            import ipdb; ipdb.set_trace()
             next_level = []
             for n in current_level:
                 new_cluster = None
@@ -808,7 +830,7 @@ def test_3_clusters_2_dimensions():
     from sklearn import datasets
     from sklearn.preprocessing import StandardScaler
 
-    dataset = datasets.make_blobs(n_samples=50, random_state=8)
+    dataset = datasets.make_blobs(n_samples=200, random_state=8)
     X, y = dataset
     # normalize dataset for easier parameter selection
     X = StandardScaler().fit_transform(X)
@@ -817,7 +839,8 @@ def test_3_clusters_2_dimensions():
     ihac.fit(X)
     # ihac.hierarchy.visualize()
 
-    y_pred = ihac.labels_.astype(np.int)
+    labels = ihac.get_labels()
+    y_pred = labels.astype(np.int)
 
     import matplotlib.pyplot as plt
     colors = np.array([x for x in 'bgrcmykbgrcmykbgrcmykbgrcmyk'])
