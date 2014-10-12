@@ -6,6 +6,7 @@ import scipy
 import numpy as np
 from sklearn.metrics.pairwise import pairwise_distances
 import networkx as nx
+import pickle
 
 DISTANCE = 'euclidean'
 
@@ -33,8 +34,8 @@ class Node(object):
             Enlarge data structures to handle more
             points
         """
-        cls.size += + extra_size
-        new_max_n_nodes = 2 * new_size - 1
+        cls.size += extra_size
+        new_max_n_nodes = 4 * cls.size - 1
         extra_n_nodes = new_max_n_nodes - cls.max_n_nodes
         cls.enlarge_node_number(extra_n_nodes)
 
@@ -414,7 +415,6 @@ class ClusterNode(Node):
         plt.show()
                
 
-
 class Hierarchy(object):
     def __init__(self, size, vec1, vec2):
         """
@@ -637,6 +637,32 @@ class IHAClusterer(object):
     def __init__(self):
         pass
 
+    def save(self, prefix):
+        with open(prefix + 'hierarchy.dump', 'wb') as f:
+            data = {
+                'Node': {
+                    'size': Node.size,
+                    'max_n_nodes': Node.max_n_nodes,
+                    'available_ids': Node.available_ids,
+                    'nodes': Node.nodes,
+                    'distances': Node.distances,
+                },
+                'self': {
+                    'hierarchy': self.hierarchy,
+                    'vecs': self.vecs,
+                    'size': self.size                
+                }
+            }    
+            pickle.dump(data, f)
+
+    def load(self, prefix):
+        with open(prefix + 'hierarchy.dump', 'rb') as f:    
+            data = pickle.load(f)
+            for name, val in data["Node"].items():
+                setattr(Node, name, val)
+            for name, val in data["self"].items():
+                setattr(self, name, val)
+
     def fit(self, vecs):
         self.size = len(vecs)
         Node.init(self.size)
@@ -650,6 +676,16 @@ class IHAClusterer(object):
             # print("OK")
 
         self.get_labels()
+
+    def fit_more(self, vecs):
+        Node.enlarge_point_number(len(vecs))
+        for vec in vecs:
+            # print("processing " + repr(vec))
+            self.hierarchy.incorporate(vec)
+            # print("OK")
+        self.get_labels()
+        self.vecs += vecs
+        self.size += len(vecs)
 
 
     def get_labels(self):
