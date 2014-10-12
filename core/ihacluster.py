@@ -60,7 +60,10 @@ class Node(object):
     def __repr__(self):
         node_type = str(type(self)).split(".")[1].split("'")[0]
         center_str = "[" + ", ".join(["%.2f" % x for x in self.center]) + "]"
-        return "%s [%d] (%s)" % (node_type, self.id, center_str)
+        node_str = "%s [%d] (%s)" % (node_type, self.id, center_str)
+        if self.is_root():
+            node_str += "<ROOT>"
+        return node_str
 
     def get_plot_label(self):
         if self.is_root():
@@ -387,20 +390,20 @@ class ClusterNode(Node):
 
         G = nx.DiGraph()
         G.add_node(root_label)
-        if onedim:
-            pos = {}
-            pos[root_label] = np.array([root.center, 1.0])
+        pos = {}
+        pos[root_label] = (self.center, 1.0) if onedim else (0.5, 1)
         n_level = 0
         while current_level:
             next_level = []
             n_level += 1
-            for n in current_level:
+            for i, n in enumerate(current_level):
+                step = 1.0 / (len(current_level) + 1)
                 n_label = n.get_plot_label()
                 for ch in n.children:
                     ch_label = ch.get_plot_label()
                     G.add_node(ch_label)
-                    if onedim:
-                        pos[ch_label] = np.array([ch.center, 1.0 - 0.1 * n_level])
+                    x_coord = ch.center if onedim else (i + 1) * step
+                    pos[ch_label] = (x_coord, 1.0 - 0.02 * n_level) 
                     G.add_edge(n_label, ch_label)
                     if type(ch) == ClusterNode:
                         next_level.append(ch)
@@ -427,6 +430,7 @@ class Hierarchy(object):
         self.leaves = [leaf1, leaf2] # Indices of leaf nodes
 
     def incorporate(self, vec):
+        # import ipdb; ipdb.set_trace()
         new_leaf = LeafNode(vec=vec)
         closest_leaf, dist = self.get_closest_leaf(new_leaf)
 
@@ -442,6 +446,7 @@ class Hierarchy(object):
                     if new_leaf.forms_lower_dense_region(ch) or type(ch) is LeafNode:
                         self.ins_hierarchy(nchild, new_leaf)
                         found_host = nchild.parent; break # new cluster
+                        # QUESTION: or should we make found_host = current here?
             next = current.parent
             if next:
                 current = next
@@ -457,6 +462,8 @@ class Hierarchy(object):
             # print("host not found")
             self.ins_hierarchy(current, new_leaf)
         self.leaves.append(new_leaf)
+
+        # import ipdb; ipdb.set_trace()
 
     def restructure_hierarchy(self, host_node):
         """Algorithm Hierarchy Restructuring:
@@ -504,7 +511,7 @@ class Hierarchy(object):
         """
         finished = False
         while not finished:
-            if len(node.children) < 2:
+            if len(node.children) < 3:
                 finished = True
             else:
                 ni, nj, d = node.get_closest_children()
@@ -512,9 +519,11 @@ class Hierarchy(object):
                     self.merge(ni, nj)
                 else:
                     finished = True
-        if len(node.children) >= 2:
+        if len(node.children) >= 3:
             mi, mj, d = node.get_farthest_children()
             if d > node.upper_limit():
+                # WARNING! split over nodes that are not nearest won't
+                # create two partitions as expected
                 ni, nj = self.split(node, mi, mj)
                 self.repair_homogeneity(ni)
                 self.repair_homogeneity(nj)
@@ -573,6 +582,7 @@ class Hierarchy(object):
         return scipy.mean(level_averages)
 
     def visualize(self, onedim=False):
+        onedim = self.root.center.shape == (1,)
         root = self.root.visualize(onedim=onedim)
 
     def get_closest_leaf(self, node):
@@ -705,10 +715,23 @@ def create_2_1dim_clusters():
     print("\nB: ")
     print(cluster_b)
 
+
     points = np.append(cluster_a, cluster_b)
     np.random.shuffle(points)
     points = [np.array([p]) for p in points]
     return points
+
+def test_no_cluster_node_with_single_cluster_child():
+    points = [0.30, 0.40, 0.80, 2.70, 0.20, 2.40]
+    points = [np.array([p]) for p in points]
+    points_1, points_2 = points[:4], points[4:]
+    clusterer = IHAClusterer()
+    clusterer.fit(points_1)
+    hi = clusterer.hierarchy
+    import ipdb; ipdb.set_trace()
+    clusterer.fit_more(points_2)
+    hi.visualize()
+    import ipdb; ipdb.set_trace()
 
 
 def test_2_clusters_1_dimension():
@@ -769,7 +792,7 @@ def test_3_clusters_2_dimensions():
     from sklearn import datasets
     from sklearn.preprocessing import StandardScaler
 
-    dataset = datasets.make_blobs(n_samples=20, random_state=8)
+    dataset = datasets.make_blobs(n_samples=50, random_state=8)
     X, y = dataset
     # normalize dataset for easier parameter selection
     X = StandardScaler().fit_transform(X)
@@ -780,7 +803,6 @@ def test_3_clusters_2_dimensions():
 
     y_pred = ihac.labels_.astype(np.int)
 
-    # import ipdb; ipdb.set_trace()
     import matplotlib.pyplot as plt
     colors = np.array([x for x in 'bgrcmykbgrcmykbgrcmykbgrcmyk'])
     colors = np.hstack([colors] * 20)
