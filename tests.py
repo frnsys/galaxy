@@ -20,7 +20,7 @@ class IHACTest(unittest.TestCase):
         self.clusterer.fit(points)
 
     def test_load_and_save(self):
-        points = generate_points(num_clusters=6)
+        points = generate_points(num_clusters=10)
         self.clusterer.fit(points)
 
         half = int(len(points)/2)
@@ -34,8 +34,8 @@ class IHACTest(unittest.TestCase):
         second_clusterer.load("./")
         second_clusterer.fit_more(points_2)
 
-        print(self.clusterer.labels_)
-        print(second_clusterer.labels_)
+        print(self.clusterer.get_labels())
+        print(second_clusterer.get_labels())
 
         # import ipdb; ipdb.set_trace()
 

@@ -306,7 +306,6 @@ class ClusterNode(Node):
         graph.add_edges_from(edges)
         
         if graph.has_edge(mj.id, mi.id):
-            import ipdb; ipdb.set_trace()
             graph.remove_edge(mi.id, mj.id)
         else:
             path = nx.shortest_path(graph, source=mi.id, target=mj.id)
@@ -563,13 +562,6 @@ class Hierarchy(object):
                     self.repair_homogeneity(ni)
                 if type(nj) is ClusterNode:
                     self.repair_homogeneity(nj)
-
-    def resize(self):
-        """
-            resize Node data structures to hold process
-            a new batch of points
-        """
-        pass
     
     def fcluster(self, distance_threshold=None):
         """
@@ -735,7 +727,7 @@ class IHAClusterer(object):
 
     def get_labels(self):
         _, dict_labels = self.hierarchy.fcluster()
-        leaf_ids = sorted([l.id for l in self.hierarchy.leaves])
+        leaf_ids = [l.id for l in self.hierarchy.leaves]
         self.labels_ = np.array([dict_labels[lid] for lid in leaf_ids])
         return self.labels_
 
@@ -830,7 +822,7 @@ def test_3_clusters_2_dimensions():
     from sklearn import datasets
     from sklearn.preprocessing import StandardScaler
 
-    dataset = datasets.make_blobs(n_samples=200, random_state=8)
+    dataset = datasets.make_blobs(n_samples=35, random_state=8)
     X, y = dataset
     # normalize dataset for easier parameter selection
     X = StandardScaler().fit_transform(X)
@@ -840,6 +832,9 @@ def test_3_clusters_2_dimensions():
     # ihac.hierarchy.visualize()
 
     labels = ihac.get_labels()
+    print("Labels: ")
+    print(labels)
+    print("N clusters = %d" % len(set(labels)))
     y_pred = labels.astype(np.int)
 
     import matplotlib.pyplot as plt
