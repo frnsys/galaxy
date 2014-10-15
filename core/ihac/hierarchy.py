@@ -19,8 +19,37 @@ class Hierarchy():
         A hierarchy must be initialized with one vector.
         """
         node = LeafNode(id=0, vec=vector, parent=None)
+        self.root = node
         self.nodes = [node]
+        self.leaves = [node]
         self.dists = np.array([[0]], order='C')
+
+    def add_vector(self, vec):
+        """
+        Add a new vector into the hierarchy.
+        """
+        n = self.create_node(LeafNode, vec=vec, parent=None)
+        n_c, d = self.get_closest_leaf(n)
+        n_cp = closest_leaf.parent
+
+        # Try to find a parent for the new node, n.
+        # If the distance is w/in the limits of the candidate parent n_cp,
+        # just insert n there.
+        if d >= n_cp.lower_limit and d <= n_cp.upper_limit:
+            self.ins_node(n_cp, n)
+
+        # Otherwise, 
+        elif d <= n_cp.lower_limit:
+            for ch in n_cp.children:
+                if n.forms_lower_dense_region(ch)
+
+    def get_closest_leaf(self, n):
+        # Build a view of the master distance matrix showing only
+        # n's distances from the leaves of this hierarchy.
+        cols = [l.id for l in self.leaves]
+        dist_mat = self.dists[[[n.id]], cols][0]
+        i = np.argmin(dist_mat)
+        return self.leaves[i], dist_mat[i]
 
     def create_node(self, node_cls, **init_args):
         """
