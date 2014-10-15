@@ -1,21 +1,27 @@
+#!/usr/bin/env python # -*- coding: utf-8
 from scipy import clip
 from scipy.spatial.distance import pdist, squareform, euclidean
 from scipy.cluster.hierarchy import linkage, fcluster
 
 import scipy
 import numpy as np
+import os
 from sklearn.metrics.pairwise import pairwise_distances
 import networkx as nx
 import pickle
+
+from eval.data import load_articles, build_vectors
 
 DISTANCE = 'euclidean'
 
 def n_pairs(m):
     return (m * (m - 1)) / 2
 
+
 def distance(vec1, vec2):
     if DISTANCE == 'euclidean':
         return euclidean(vec1, vec2)
+
 
 class Node(object):
     @classmethod
@@ -140,7 +146,7 @@ class Node(object):
     def forms_lower_dense_region(self, c):
         """
         Let C be a homogenous cluster. 
-        Given a new point A, let B be a C‘s cluster member that is the nearest
+        Given a new point A, let B be a C's cluster member that is the nearest
         neighbor to A. Let d be the distance from A to B. A (and B)
         is said to form a lower dense region in C if d > U_L
         """
@@ -306,7 +312,6 @@ class ClusterNode(Node):
         graph.add_edges_from(edges)
         
         if graph.has_edge(mj.id, mi.id):
-            import ipdb; ipdb.set_trace()
             graph.remove_edge(mi.id, mj.id)
         else:
             path = nx.shortest_path(graph, source=mi.id, target=mj.id)
@@ -563,13 +568,6 @@ class Hierarchy(object):
                     self.repair_homogeneity(ni)
                 if type(nj) is ClusterNode:
                     self.repair_homogeneity(nj)
-
-    def resize(self):
-        """
-            resize Node data structures to hold process
-            a new batch of points
-        """
-        pass
     
     def fcluster(self, distance_threshold=None):
         """
@@ -735,11 +733,12 @@ class IHAClusterer(object):
 
     def get_labels(self):
         _, dict_labels = self.hierarchy.fcluster()
-        leaf_ids = sorted([l.id for l in self.hierarchy.leaves])
-        self.labels_ = np.array([dict_labels[lid] for lid in leaf_ids])
+        leaf_ids = [l.id for l in self.hierarchy.leaves]
+        self.labels_ = [dict_labels[lid] for lid in leaf_ids]
         return self.labels_
 
 
+# TODO: refactor as unittests and move to tests.py
 # Test code
 def create_2_1dim_clusters():
     cluster_a = np.arange(0,1,0.1)
@@ -755,6 +754,7 @@ def create_2_1dim_clusters():
     np.random.shuffle(points)
     points = [np.array([p]) for p in points]
     return points
+
 
 def test_no_cluster_node_with_single_cluster_child():
     points = [0.30, 0.40, 0.80, 2.70, 0.20, 2.40]
@@ -830,7 +830,7 @@ def test_3_clusters_2_dimensions():
     from sklearn import datasets
     from sklearn.preprocessing import StandardScaler
 
-    dataset = datasets.make_blobs(n_samples=200, random_state=8)
+    dataset = datasets.make_blobs(n_samples=400, random_state=8)
     X, y = dataset
     # normalize dataset for easier parameter selection
     X = StandardScaler().fit_transform(X)
@@ -840,6 +840,9 @@ def test_3_clusters_2_dimensions():
     # ihac.hierarchy.visualize()
 
     labels = ihac.get_labels()
+    print("Labels: ")
+    print(labels)
+    print("N clusters = %d" % len(set(labels)))
     y_pred = labels.astype(np.int)
 
     import matplotlib.pyplot as plt
@@ -849,7 +852,24 @@ def test_3_clusters_2_dimensions():
     plt.show()
 
 
+def test_with_articles(datapath):
+    articles, labels_true = load_articles(datapath)
+
+    vecs_file = 'test_articles.pickle'
+    if not os.path.exists(vecs_file):
+        vecs = build_vectors(articles, vecs_file)
+    else:
+        with open(vecs_file, 'rb') as f:
+            vecs = pickle.load(f)
+
+    ihac = IHAClusterer()
+
+    ihac.fit(vecs)
+
+    import ipdb; ipdb.set_trace()
+
 
 if __name__ == '__main__':
     # test_3_points()
-    test_3_clusters_2_dimensions()
+    datapath = "../eval/data/event/handpicked.json"
+    test_with_articles(datapath)
