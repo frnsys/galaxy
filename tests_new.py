@@ -103,17 +103,17 @@ class ClusterNodeTest(unittest.TestCase):
         expected_nearest_distance_std = math.sqrt(sum([(min - expected_nearest_distance_mean)**2 for min in mins])/len(mins))
         self.assertAlmostEqual(c.nearest_dists_std, expected_nearest_distance_std)
 
-    def test_closest_children(self):
-        n_i, n_j, d = self.c.closest_children
+    def test_nearest_children(self):
+        n_i, n_j, d = self.c.nearest_children
         self.assertEqual(n_i, self.nodes[0])
         self.assertEqual(n_j, self.nodes[1])
         self.assertEqual(d, 1.0)
 
-    def test_furthest_children(self):
-        n_i, n_j, d = self.c.furthest_children
-        self.assertEqual(n_i, self.nodes[0])
-        self.assertEqual(n_j, self.nodes[4])
-        self.assertEqual(d, 11.0)
+    def test_furthest_nearest_children(self):
+        n_i, n_j, d = self.c.furthest_nearest_children
+        self.assertEqual(n_i, self.nodes[2])
+        self.assertEqual(n_j, self.nodes[3])
+        self.assertEqual(d, 4.0)
 
     def test_leaves(self):
         self.assertEqual(self.c.leaves, self.nodes)

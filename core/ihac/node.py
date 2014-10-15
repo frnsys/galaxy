@@ -59,6 +59,10 @@ class LeafNode(Node):
     def leaves(self):
         return [self]
 
+    @property
+    def is_root(self):
+        return False
+
 
 class ClusterNode(Node):
     def __init__(self, id, children, parent, hierarchy):
@@ -124,9 +128,9 @@ class ClusterNode(Node):
         # which axis we use for the min.
         dist_mat = self.cdm
         np.fill_diagonal(dist_mat, np.nan)
-        min = np.nanmin(dist_mat, axis=0)
-        self.nearest_dists_mean = np.mean(min)
-        self.nearest_dists_std  = np.std(min)
+        self.nearest_dists = np.nanmin(dist_mat, axis=0)
+        self.nearest_dists_mean = np.mean(self.nearest_dists)
+        self.nearest_dists_std  = np.std(self.nearest_dists)
 
     @property
     def mdm(self):
@@ -145,11 +149,9 @@ class ClusterNode(Node):
         rows, cols = zip(*[([ch.id], ch.id) for ch in self.children])
         return self.mdm[rows, cols]
 
-    # TO DO
-    def split_children(self, m_i, m_j):
+    def split_children(self):
         """
-        Splits the set of children of self
-        in two groups containing m_i and m_j.
+        Splits the set of children of self into two nodes.
 
         We construct the minimum spanning tree (MST) out of this cluster node's
         distance matrix (that is, the distance matrix of its children).
@@ -160,9 +162,15 @@ class ClusterNode(Node):
         # The children dist matrix is a copy, so we can overwrite it.
         c_i, c_j = split_dist_matrix(self.cdm, overwrite=True)
 
-        c_i = self.h.create_node(ClusterNode, children=[self.children[i] for i in c_i])
-        c_j = self.h.create_node(ClusterNode, children=[self.children[i] for i in c_j])
-        return c_i, c_j
+        nodes = []
+        for c in [c_i, c_j]:
+            children = [self.children[i] for i in c]
+            if len(children) == 1:
+                n = self.h.create_node(LeafNode, vec=children[0])
+            else:
+                n = self.h.create_node(ClusterNode, children=children)
+            nodes.append(n)
+        return nodes
 
 
     def get_nearest_child(self, n, clusters_only=False):
@@ -179,10 +187,9 @@ class ClusterNode(Node):
 
 
     @property
-    def closest_children(self):
+    def nearest_children(self):
         """
-            returns the pair of children having
-            the shortest nearest distance
+        The pair of children having the shortest nearest distance.
         """
         dist_mat = self.cdm
 
@@ -195,12 +202,19 @@ class ClusterNode(Node):
         return n_i, n_j, d
 
     @property
-    def furthest_children(self):
+    def furthest_nearest_children(self):
         """
-            returns the pair of children having
-            the largest nearest distance
+        The pair of children having the largest nearest distance.
         """
+
+        # Get the largest of the nearest distances.
+        max = self.nearest_dists.max()
+
+        # Replace anything greater than the largest nearest distance with 0.
         dist_mat = self.cdm
+        dist_mat[dist_mat > max] = 0
+
+        # Find the argmax.
         i, j = np.unravel_index(dist_mat.argmax(), dist_mat.shape)
         n_i, n_j = self.children[i], self.children[j]
         d = dist_mat[i, j]
@@ -214,5 +228,6 @@ class ClusterNode(Node):
     def upper_limit(self):
         return self.nearest_dists_mean + self.nearest_dists_std
 
+    @property
     def is_root(self):
         return self.parent is None
