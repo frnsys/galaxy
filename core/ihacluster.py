@@ -72,7 +72,9 @@ class Node(object):
     def __repr__(self):
         node_type = str(type(self)).split(".")[1].split("'")[0]
         center_str = "[" + ", ".join(["%.2f" % x for x in self.center]) + "]"
-        node_str = "%s [%d] (%s)" % (node_type, self.id, center_str)
+        node_str = "%s [%d]" % (node_type, self.id)
+        # node_str = "%s [%d] (%s)" % (node_type, self.id, center_str)
+
         if self.is_root():
             node_str += "<ROOT>"
         return node_str
@@ -451,15 +453,15 @@ class ClusterNode(Node):
             current_level = next_level
         
         plt.title("IHAC hierarchy")
-        if not onedim:
-            pos = nx.spring_layout(G)
+        # if not onedim:
+        #     pos = nx.spring_layout(G)
 
         nx.draw(G, pos, with_labels=True, arrows=True)
 
         plt.show()
                
 
-class Hierarchy(object):
+class IHACHierarchy(object):
     def __init__(self, size, vec1, vec2):
         """
             Size is the number of points we plan to cluster
@@ -471,6 +473,7 @@ class Hierarchy(object):
         self.leaves = [leaf1, leaf2] # Indices of leaf nodes
 
     def incorporate(self, vec):
+        import ipdb; ipdb.set_trace()
         new_leaf = LeafNode(vec=vec)
         closest_leaf, dist = self.get_closest_leaf(new_leaf)
 
@@ -504,9 +507,7 @@ class Hierarchy(object):
         self.leaves.append(new_leaf)
 
     def restructure_hierarchy(self, host_node):
-        """Algorithm Hierarchy Restructuring:
-            
-            Starting on host_node, we traverse ancestors doing
+        """ Starting on host_node, we traverse ancestors doing
             the following:
 
             1. Recover the siblings of current that are misplaced.
@@ -712,7 +713,7 @@ class IHAClusterer(object):
         Node.init(self.size)
         self.vecs = vecs
         # print("initializing with %s and %s" % (repr(vecs[0]), repr(vecs[1])))
-        self.hierarchy = Hierarchy(len(vecs), vecs[0], vecs[1])
+        self.hierarchy = IHACHierarchy(len(vecs), vecs[0], vecs[1])
 
         for vec in self.vecs[2:]:
             # print("processing " + repr(vec))
@@ -830,7 +831,7 @@ def test_3_clusters_2_dimensions():
     from sklearn import datasets
     from sklearn.preprocessing import StandardScaler
 
-    dataset = datasets.make_blobs(n_samples=400, random_state=8)
+    dataset = datasets.make_blobs(n_samples=100, random_state=8)
     X, y = dataset
     # normalize dataset for easier parameter selection
     X = StandardScaler().fit_transform(X)
@@ -843,7 +844,7 @@ def test_3_clusters_2_dimensions():
     print("Labels: ")
     print(labels)
     print("N clusters = %d" % len(set(labels)))
-    y_pred = labels.astype(np.int)
+    y_pred = np.array(labels).astype(np.int)
 
     import matplotlib.pyplot as plt
     colors = np.array([x for x in 'bgrcmykbgrcmykbgrcmykbgrcmyk'])
@@ -863,13 +864,13 @@ def test_with_articles(datapath):
             vecs = pickle.load(f)
 
     ihac = IHAClusterer()
+    vecs = vecs.toarray()
 
     ihac.fit(vecs)
 
-    import ipdb; ipdb.set_trace()
-
 
 if __name__ == '__main__':
+    # test_3_clusters_2_dimensions()
     # test_3_points()
     datapath = "../eval/data/event/handpicked.json"
     test_with_articles(datapath)

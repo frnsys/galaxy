@@ -34,7 +34,7 @@ def load_articles(datapath, with_labels=True, as_incremental=False):
     return articles
 
 
-def build_vectors(articles, savepath):
+def build_vectors(articles, savepath=None):
     bow_vecs, concept_vecs, pub_vecs, = [], [], []
 
     for a in progress(articles, 'Building article vectors...'):
@@ -50,8 +50,11 @@ def build_vectors(articles, savepath):
     vecs = hstack([pub_vecs, bow_vecs, concept_vecs])
     print('Using {0} features.'.format(vecs.shape[1]))
 
-    with open(savepath, 'wb') as f:
-        pickle.dump(vecs, f)
+    if savepath:
+        with open(savepath, 'wb') as f:
+            pickle.dump(vecs, f)
+
+    return vecs
 
 
 def process_labeled_articles(data):

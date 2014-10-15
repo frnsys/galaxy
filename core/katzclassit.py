@@ -10,353 +10,6 @@ import scipy
 from random import choice
 from random import shuffle
 
-class CobwebTree:
-    def __init__(self):
-        """
-        Initialize the tree with a CobwebNode
-        """
-        self.root = CobwebNode()
-
-    def __str__(self):
-        return str(self.root)
-
-    def ifit(self, instance):
-        """
-        Given an instance incrementally update the categorization tree.
-        """
-        return self.cobweb(instance)
-
-    def fit(self, list_of_instances):
-        """
-        Call incremental fit on each element in a list of instances.
-        """
-        # TODO rewrite this to get the optimal fit by continually reclustering
-        # until no change.
-        for i, instance in enumerate(list_of_instances):
-            #print("instance %i of %i" % (i, len(list_of_instances)))
-            self.ifit(instance)
-
-    def cobweb(self, instance):
-        """
-        Incrementally integrates an instance into the categorization tree.
-        This function operates iteratively to integrate this instance and uses
-        category utility as the heuristic to make decisions.
-        """
-        current = self.root
-
-        while current:
-            if (not current.children and current.cu_for_fringe_split(instance)
-                <= 0.0):
-                current.increment_counts(instance)
-                return current 
-
-            elif not current.children:
-                new = current.__class__(current)
-                current.parent = new
-                new.children.append(current)
-
-                if new.parent:
-                    new.parent.children.remove(current)
-                    new.parent.children.append(new)
-                else:
-                    self.root = new
-
-                new.increment_counts(instance)
-                return new.create_new_child(instance)
-            else:
-                best1, best2 = current.two_best_children(instance)
-                action_cu, best_action = current.get_best_operation(instance,
-                                                                    best1,
-                                                                    best2)
-
-                if best1:
-                    best1_cu, best1 = best1
-                if best2:
-                    best2_cu, best2 = best2
-
-                if best_action == 'best':
-                    current.increment_counts(instance)
-                    current = best1
-                elif best_action == 'new':
-                    current.increment_counts(instance)
-                    return current.create_new_child(instance)
-                elif best_action == 'merge':
-                    current.increment_counts(instance)
-                    new_child = current.merge(best1, best2)
-                    current = new_child
-                elif best_action == 'split':
-                    current.split(best1)
-                else:
-                    raise Exception("Should never get here.")
-
-    def cobweb_categorize_leaf(self, instance):
-        """
-        Sorts an instance in the categorization tree defined at the current
-        node without modifying the counts of the tree.
-
-        This version always goes to a leaf.
-        """
-        current = self.root
-        while current:
-            if not current.children:
-                return current
-            
-            best1, best2 = current.two_best_children(instance)
-
-            if best1:
-                best1_cu, best1 = best1
-                current = best1
-            else:
-                return current
-
-    def cobweb_categorize(self, instance):
-        """
-        Sorts an instance in the categorization tree defined at the current
-        node without modifying the counts of the tree.
-
-        Uses the new and best operations; when new is the best operation it
-        returns the current node otherwise it iterates on the best node. 
-        """
-        current = self.root
-        while current:
-            if not current.children:
-                return current
-
-            best1, best2 = current.two_best_children(instance)
-            action_cu, best_action = current.get_best_operation(instance,
-                                                                 best1, best2,
-                                                                 ["best",
-                                                                  "new"]) 
-            if best1:
-                best1_cu, best1 = best1
-            else:
-                return current
-
-            if best_action == "new":
-                return current
-            elif best_action == "best":
-                current = best1
-
-    def predict(self, instance):
-        """
-        Given an instance predict any missing attribute values without
-        modifying the tree.
-        """
-        prediction = {}
-
-        # make a copy of the instance
-        for attr in instance:
-            prediction[attr] = instance[attr]
-
-        concept = self.cobweb_categorize(instance)
-        
-        for attr in concept.av_counts:
-            if attr in prediction:
-                continue
-            
-            values = []
-            for val in concept.av_counts[attr]:
-                values += [val] * concept.av_counts[attr][val]
-
-            prediction[attr] = choice(values)
-
-        return prediction
-
-    def concept_attr_value(self, instance, attr, val):
-        """
-        Gets the probability of a particular attribute value for the concept
-        associated with a given instance.
-        """
-        concept = self.cobweb_categorize(instance)
-        return concept.get_probability(attr, val)
-
-    def flexible_prediction(self, instance, guessing=False):
-        """
-        Fisher's flexible prediction task. It computes the accuracy of
-        correctly predicting each attribute value (removing it from the
-        instance first). It then returns the average accuracy. 
-        """
-        probs = []
-        for attr in instance:
-            temp = {}
-            for attr2 in instance:
-                if attr == attr2:
-                    continue
-                temp[attr2] = instance[attr2]
-            if guessing:
-                probs.append(self.get_probability(attr, instance[attr]))
-            else:
-                probs.append(self.concept_attr_value(temp, attr, instance[attr]))
-        return sum(probs) / len(probs)
-
-    def train_from_json(self, filename, length=None):
-        """
-        Build the concept tree from a set of examples in a provided json file.
-        """
-        json_data = open(filename, "r")
-        instances = json.load(json_data)
-        if length:
-            shuffle(instances)
-            instances = instances[:length]
-        self.fit(instances)
-        json_data.close()
-
-    def sequential_prediction(self, filename, length, guessing=False):
-        """
-        Given a json file, perform an incremental sequential prediction task. 
-        Try to flexibly predict each instance before incorporating it into the 
-        tree. This will give a type of cross validated result.
-        """
-        json_data = open(filename, "r")
-        instances = json.load(json_data)
-        #shuffle(instances)
-        #instances = instances[0:length]
-
-        accuracy = []
-        nodes = []
-        for j in range(1):
-            shuffle(instances)
-            for n, i in enumerate(instances):
-                if n >= length:
-                    break
-                accuracy.append(self.flexible_prediction(i, guessing))
-                nodes.append(self.num_concepts())
-                self.ifit(i)
-        json_data.close()
-        return accuracy, nodes
-
-    def cluster(self, instances, depth=1):
-        """
-        Used to cluster examples incrementally and return the cluster labels.
-        The final cluster labels are at a depth of 'depth' from the root. This
-        defaults to 1, which takes the first split, but it might need to be 2
-        or greater in cases where more distinction is needed.
-        """
-        temp_clusters = [self.ifit(instance) for instance in instances]
-
-        print(len(set([c.concept_id for c in temp_clusters])))
-        clusters = []
-        for i,c in enumerate(temp_clusters):
-            while (c.parent and c not in c.parent.children):
-                c = c.parent
-
-            promote = True
-            while c.parent and promote:
-                n = c
-                for i in range(depth+2):
-                    if not n:
-                        promote = False
-                        break
-                    n = n.parent
-
-                if promote:
-                    c = c.parent
-
-            clusters.append("Concept" + c.concept_id)
-
-        with open('visualize/output.json', 'w') as f:
-            f.write(json.dumps(self.root.output_json()))
-
-        return clusters
-
-    def baseline_guesser(self, filename, length, iterations):
-        """
-        Equivalent of predictions, but just makes predictions from the root of
-        the concept tree. This is the equivalent of guessing the distribution
-        of all attribute values. 
-        """
-        n = iterations
-        runs = []
-        nodes = []
-
-        for i in range(0,n):
-            print("run %i" % i)
-            t = self.__class__()
-            accuracy, num = t.sequential_prediction(filename, length, True)
-            runs.append(accuracy)
-            nodes.append(num)
-            #print(json.dumps(t.output_json()))
-
-        #print(runs)
-        print("MEAN Accuracy")
-        for i in range(0,len(runs[0])):
-            a = []
-            for r in runs:
-                a.append(r[i])
-            print("%0.2f" % (scipy.mean(a)))
-
-        print()
-        print("STD Accuracy")
-        for i in range(0,len(runs[0])):
-            a = []
-            for r in runs:
-                a.append(r[i])
-            print("%0.2f" % (scipy.std(a)))
-
-        print()
-        print("MEAN Concepts")
-        for i in range(0,len(runs[0])):
-            a = []
-            for r in nodes:
-                a.append(r[i])
-            print("%0.2f" % (scipy.mean(a)))
-
-        print()
-        print("STD Concepts")
-        for i in range(0,len(runs[0])):
-            a = []
-            for r in nodes:
-                a.append(r[i])
-            print("%0.2f" % (scipy.std(a)))
-
-    def predictions(self, filename, length, iterations):
-        """
-        Perform the sequential prediction task many times and compute the mean
-        and std of all flexible predictions.
-        """
-        n = iterations 
-        runs = []
-        nodes = []
-        for i in range(0,n):
-            print("run %i" % i)
-            t = self.__class__()
-            accuracy, num = t.sequential_prediction(filename, length)
-            runs.append(accuracy)
-            nodes.append(num)
-            #print(json.dumps(t.output_json()))
-
-        #print(runs)
-        print("MEAN Accuracy")
-        for i in range(0,len(runs[0])):
-            a = []
-            for r in runs:
-                a.append(r[i])
-            print("%0.2f" % (scipy.mean(a)))
-
-        print()
-        print("STD Accuracy")
-        for i in range(0,len(runs[0])):
-            a = []
-            for r in runs:
-                a.append(r[i])
-            print("%0.2f" % (scipy.std(a)))
-
-        print()
-        print("MEAN Concepts")
-        for i in range(0,len(runs[0])):
-            a = []
-            for r in nodes:
-                a.append(r[i])
-            print("%0.2f" % (scipy.mean(a)))
-
-        print()
-        print("STD Concepts")
-        for i in range(0,len(runs[0])):
-            a = []
-            for r in nodes:
-                a.append(r[i])
-            print("%0.2f" % (scipy.std(a)))
-
 class CobwebNode:
     counter = 0
 
@@ -764,6 +417,434 @@ class CobwebNode:
             return 0.0
 
         return (1.0 * self.av_counts[attr][val]) / self.count
+
+
+
+
+class CobwebHierarchy:
+    def __init__(self):
+        """
+        Initialize the tree with a CobwebNode
+        """
+        self.root = CobwebNode()
+
+    def __str__(self):
+        return str(self.root)
+
+    def ifit(self, instance):
+        """
+        Given an instance incrementally update the categorization tree.
+        """
+        return self.cobweb(instance)
+
+    def fit(self, list_of_instances):
+        """
+        Call incremental fit on each element in a list of instances.
+        """
+        # TODO rewrite this to get the optimal fit by continually reclustering
+        # until no change.
+        for i, instance in enumerate(list_of_instances):
+            #print("instance %i of %i" % (i, len(list_of_instances)))
+            self.ifit(instance)
+
+    def cobweb(self, instance):
+        """
+        Incrementally integrates an instance into the categorization tree.
+        This function operates iteratively to integrate this instance and uses
+        category utility as the heuristic to make decisions.
+        """
+        current = self.root
+
+        while current:
+            if (not current.children and current.cu_for_fringe_split(instance)
+                <= 0.0):
+                current.increment_counts(instance)
+                return current 
+
+            elif not current.children:
+                new = current.__class__(current)
+                current.parent = new
+                new.children.append(current)
+
+                if new.parent:
+                    new.parent.children.remove(current)
+                    new.parent.children.append(new)
+                else:
+                    self.root = new
+
+                new.increment_counts(instance)
+                return new.create_new_child(instance)
+            else:
+                best1, best2 = current.two_best_children(instance)
+                action_cu, best_action = current.get_best_operation(instance,
+                                                                    best1,
+                                                                    best2)
+
+                if best1:
+                    best1_cu, best1 = best1
+                if best2:
+                    best2_cu, best2 = best2
+
+                if best_action == 'best':
+                    current.increment_counts(instance)
+                    current = best1
+                elif best_action == 'new':
+                    current.increment_counts(instance)
+                    return current.create_new_child(instance)
+                elif best_action == 'merge':
+                    current.increment_counts(instance)
+                    new_child = current.merge(best1, best2)
+                    current = new_child
+                elif best_action == 'split':
+                    current.split(best1)
+                else:
+                    raise Exception("Should never get here.")
+
+    def cobweb_categorize_leaf(self, instance):
+        """
+        Sorts an instance in the categorization tree defined at the current
+        node without modifying the counts of the tree.
+
+        This version always goes to a leaf.
+        """
+        current = self.root
+        while current:
+            if not current.children:
+                return current
+            
+            best1, best2 = current.two_best_children(instance)
+
+            if best1:
+                best1_cu, best1 = best1
+                current = best1
+            else:
+                return current
+
+    def cobweb_categorize(self, instance):
+        """
+        Sorts an instance in the categorization tree defined at the current
+        node without modifying the counts of the tree.
+
+        Uses the new and best operations; when new is the best operation it
+        returns the current node otherwise it iterates on the best node. 
+        """
+        current = self.root
+        while current:
+            if not current.children:
+                return current
+
+            best1, best2 = current.two_best_children(instance)
+            action_cu, best_action = current.get_best_operation(instance,
+                                                                 best1, best2,
+                                                                 ["best",
+                                                                  "new"]) 
+            if best1:
+                best1_cu, best1 = best1
+            else:
+                return current
+
+            if best_action == "new":
+                return current
+            elif best_action == "best":
+                current = best1
+
+    def predict(self, instance):
+        """
+        Given an instance predict any missing attribute values without
+        modifying the tree.
+        """
+        prediction = {}
+
+        # make a copy of the instance
+        for attr in instance:
+            prediction[attr] = instance[attr]
+
+        concept = self.cobweb_categorize(instance)
+        
+        for attr in concept.av_counts:
+            if attr in prediction:
+                continue
+            
+            values = []
+            for val in concept.av_counts[attr]:
+                values += [val] * concept.av_counts[attr][val]
+
+            prediction[attr] = choice(values)
+
+        return prediction
+
+    def concept_attr_value(self, instance, attr, val):
+        """
+        Gets the probability of a particular attribute value for the concept
+        associated with a given instance.
+        """
+        concept = self.cobweb_categorize(instance)
+        return concept.get_probability(attr, val)
+
+    def flexible_prediction(self, instance, guessing=False):
+        """
+        Fisher's flexible prediction task. It computes the accuracy of
+        correctly predicting each attribute value (removing it from the
+        instance first). It then returns the average accuracy. 
+        """
+        probs = []
+        for attr in instance:
+            temp = {}
+            for attr2 in instance:
+                if attr == attr2:
+                    continue
+                temp[attr2] = instance[attr2]
+            if guessing:
+                probs.append(self.get_probability(attr, instance[attr]))
+            else:
+                probs.append(self.concept_attr_value(temp, attr, instance[attr]))
+        return sum(probs) / len(probs)
+
+    def train_from_json(self, filename, length=None):
+        """
+        Build the concept tree from a set of examples in a provided json file.
+        """
+        json_data = open(filename, "r")
+        instances = json.load(json_data)
+        if length:
+            shuffle(instances)
+            instances = instances[:length]
+        self.fit(instances)
+        json_data.close()
+
+    def sequential_prediction(self, filename, length, guessing=False):
+        """
+        Given a json file, perform an incremental sequential prediction task. 
+        Try to flexibly predict each instance before incorporating it into the 
+        tree. This will give a type of cross validated result.
+        """
+        json_data = open(filename, "r")
+        instances = json.load(json_data)
+        #shuffle(instances)
+        #instances = instances[0:length]
+
+        accuracy = []
+        nodes = []
+        for j in range(1):
+            shuffle(instances)
+            for n, i in enumerate(instances):
+                if n >= length:
+                    break
+                accuracy.append(self.flexible_prediction(i, guessing))
+                nodes.append(self.num_concepts())
+                self.ifit(i)
+        json_data.close()
+        return accuracy, nodes
+
+    def cluster(self, instances, depth=1):
+        """
+        Used to cluster examples incrementally and return the cluster labels.
+        The final cluster labels are at a depth of 'depth' from the root. This
+        defaults to 1, which takes the first split, but it might need to be 2
+        or greater in cases where more distinction is needed.
+        """
+        temp_clusters = [self.ifit(instance) for instance in instances]
+
+        print(len(set([c.concept_id for c in temp_clusters])))
+        clusters = []
+        for i,c in enumerate(temp_clusters):
+            while (c.parent and c not in c.parent.children):
+                c = c.parent
+
+            promote = True
+            while c.parent and promote:
+                n = c
+                for i in range(depth+2):
+                    if not n:
+                        promote = False
+                        break
+                    n = n.parent
+
+                if promote:
+                    c = c.parent
+
+            clusters.append("Concept" + c.concept_id)
+
+        with open('visualize/output.json', 'w') as f:
+            f.write(json.dumps(self.root.output_json()))
+
+        return clusters
+
+    def baseline_guesser(self, filename, length, iterations):
+        """
+        Equivalent of predictions, but just makes predictions from the root of
+        the concept tree. This is the equivalent of guessing the distribution
+        of all attribute values. 
+        """
+        n = iterations
+        runs = []
+        nodes = []
+
+        for i in range(0,n):
+            print("run %i" % i)
+            t = self.__class__()
+            accuracy, num = t.sequential_prediction(filename, length, True)
+            runs.append(accuracy)
+            nodes.append(num)
+            #print(json.dumps(t.output_json()))
+
+        #print(runs)
+        print("MEAN Accuracy")
+        for i in range(0,len(runs[0])):
+            a = []
+            for r in runs:
+                a.append(r[i])
+            print("%0.2f" % (scipy.mean(a)))
+
+        print()
+        print("STD Accuracy")
+        for i in range(0,len(runs[0])):
+            a = []
+            for r in runs:
+                a.append(r[i])
+            print("%0.2f" % (scipy.std(a)))
+
+        print()
+        print("MEAN Concepts")
+        for i in range(0,len(runs[0])):
+            a = []
+            for r in nodes:
+                a.append(r[i])
+            print("%0.2f" % (scipy.mean(a)))
+
+        print()
+        print("STD Concepts")
+        for i in range(0,len(runs[0])):
+            a = []
+            for r in nodes:
+                a.append(r[i])
+            print("%0.2f" % (scipy.std(a)))
+
+    def predictions(self, filename, length, iterations):
+        """
+        Perform the sequential prediction task many times and compute the mean
+        and std of all flexible predictions.
+        """
+        n = iterations 
+        runs = []
+        nodes = []
+        for i in range(0,n):
+            print("run %i" % i)
+            t = self.__class__()
+            accuracy, num = t.sequential_prediction(filename, length)
+            runs.append(accuracy)
+            nodes.append(num)
+            #print(json.dumps(t.output_json()))
+
+        #print(runs)
+        print("MEAN Accuracy")
+        for i in range(0,len(runs[0])):
+            a = []
+            for r in runs:
+                a.append(r[i])
+            print("%0.2f" % (scipy.mean(a)))
+
+        print()
+        print("STD Accuracy")
+        for i in range(0,len(runs[0])):
+            a = []
+            for r in runs:
+                a.append(r[i])
+            print("%0.2f" % (scipy.std(a)))
+
+        print()
+        print("MEAN Concepts")
+        for i in range(0,len(runs[0])):
+            a = []
+            for r in nodes:
+                a.append(r[i])
+            print("%0.2f" % (scipy.mean(a)))
+
+        print()
+        print("STD Concepts")
+        for i in range(0,len(runs[0])):
+            a = []
+            for r in nodes:
+                a.append(r[i])
+            print("%0.2f" % (scipy.std(a)))
+
+
+
+
+
+
+
+class KatzClassitClusterer(object):
+    def __init__(self):
+        pass
+
+    def save(self, prefix):
+        with open(prefix + 'hierarchy.dump', 'wb') as f:
+            data = {
+                # 'Node': {
+                #     'size': Node.size,
+                #     'max_n_nodes': Node.max_n_nodes,
+                #     'available_ids': Node.available_ids,
+                #     'nodes': Node.nodes,
+                #     'distances': Node.distances,
+                # },
+                # 'self': {
+                #     'hierarchy': self.hierarchy,
+                #     'vecs': self.vecs,
+                #     'size': self.size                
+                # }
+            }    
+            pickle.dump(data, f)
+
+    def load(self, prefix):
+        with open(prefix + 'hierarchy.dump', 'rb') as f:    
+            data = pickle.load(f)
+            # for name, val in data["Node"].items():
+            #     setattr(Node, name, val)
+            # for name, val in data["self"].items():
+            #     setattr(self, name, val)
+
+    def fit(self, vecs):
+        self.size = len(vecs)
+        Node.init(self.size)
+        self.vecs = vecs
+        # print("initializing with %s and %s" % (repr(vecs[0]), repr(vecs[1])))
+        self.hierarchy = Hierarchy(len(vecs), vecs[0], vecs[1])
+
+        for vec in self.vecs[2:]:
+            # print("processing " + repr(vec))
+            self.hierarchy.incorporate(vec)
+            # print("OK")
+
+    def fit_more(self, vecs):
+        Node.enlarge_point_number(len(vecs))
+        for vec in vecs:
+            # print("processing " + repr(vec))
+            self.hierarchy.incorporate(vec)
+            # print("OK")
+        self.vecs += vecs
+        self.size += len(vecs)
+        self.labels_ = None # reset labels
+
+
+
+    def get_labels(self):
+        _, dict_labels = self.hierarchy.fcluster()
+        leaf_ids = [l.id for l in self.hierarchy.leaves]
+        self.labels_ = [dict_labels[lid] for lid in leaf_ids]
+        return self.labels_
+
+
+
+
+
+
+
+
+
+
+
+
 
 if __name__ == "__main__":
     #Cobweb().predictions("data_files/cobweb_test.json", 10, 100)
