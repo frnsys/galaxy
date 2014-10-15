@@ -33,6 +33,22 @@ class Node(object):
         cls.available_ids = set(range(cls.max_n_nodes))   
         cls.nodes = {}  # a dictionary to hold all the nodes created indexed by id
         cls.distances = -1 * np.ones(n_distances) # A *condensed* matrix for distances between cluster centers
+
+
+    def __init__(self, parent=None):
+        """
+            A new node is created by passing either:
+            - a vector point, in case of a leaf node
+            - a list of children, for a cluster node
+        """
+        self.parent = parent
+        if len(Node.available_ids) == 0:
+            Node.enlarge_node_number()
+        self.id = Node.available_ids.pop()
+        Node.nodes[self.id] = self
+        self.label = None
+        self.children = []
+
     
     @classmethod
     def enlarge_point_number(cls, extra_size):
@@ -79,8 +95,22 @@ class Node(object):
             node_str += "<ROOT>"
         return node_str
 
-    def get_plot_label(self):
-        if self.is_root():
+    def pretty_print(self, depth=0):
+        """
+        Prints the categorization tree.
+        """
+        ret = ('\t' * depth) + "|- %s: \n" % self.get_label()
+        
+        for c in self.children:
+            ret += c.pretty_print(depth+1)
+
+        return ret
+
+
+    def get_label(self):
+        if self.label:
+            return self.label
+        elif self.is_root():
             return "ROOT"
         elif self.center.shape == (1,):
             return "%.2f" % self.center
@@ -93,18 +123,6 @@ class Node(object):
 
         Node.available_ids.add(self.id)
         del Node.nodes[self.id]
-
-    def __init__(self, parent=None):
-        """
-            A new node is created by passing either:
-            - a vector point, in case of a leaf node
-            - a list of children, for a cluster node
-        """
-        self.parent = parent
-        if len(Node.available_ids) == 0:
-            Node.enlarge_node_number()
-        self.id = Node.available_ids.pop()
-        Node.nodes[self.id] = self
 
     def get_cluster_leaves(self):
         """
@@ -429,7 +447,7 @@ class ClusterNode(Node):
         import matplotlib.pyplot as plt
 
         current_level = [self]
-        root_label = self.get_plot_label()
+        root_label = self.get_label()
 
         G = nx.DiGraph()
         G.add_node(root_label)
@@ -441,9 +459,9 @@ class ClusterNode(Node):
             n_level += 1
             for i, n in enumerate(current_level):
                 step = 1.0 / (len(current_level) + 1)
-                n_label = n.get_plot_label()
+                n_label = n.get_label()
                 for ch in n.children:
-                    ch_label = ch.get_plot_label()
+                    ch_label = ch.get_label()
                     G.add_node(ch_label)
                     x_coord = ch.center if onedim else (i + 1) * step
                     pos[ch_label] = (x_coord, 1.0 - 0.02 * n_level) 
@@ -462,19 +480,21 @@ class ClusterNode(Node):
                
 
 class IHACHierarchy(object):
-    def __init__(self, size, vec1, vec2):
+    def __init__(self, size, vec1, vec2, vec1_tag=None, vec2_tag=None):
         """
             Size is the number of points we plan to cluster
         """
         leaf1 = LeafNode(vec1)
         leaf2 = LeafNode(vec2)
+        leaf1.label = vec1_tag
+        leaf2.label = vec2_tag
         self.root = ClusterNode(children=[leaf1, leaf2])
         self.size = size
         self.leaves = [leaf1, leaf2] # Indices of leaf nodes
 
-    def incorporate(self, vec):
-        import ipdb; ipdb.set_trace()
+    def incorporate(self, vec, vec_tag=None):
         new_leaf = LeafNode(vec=vec)
+        new_leaf.label = vec_tag
         closest_leaf, dist = self.get_closest_leaf(new_leaf)
 
         current = closest_leaf.parent
@@ -708,16 +728,19 @@ class IHAClusterer(object):
             for name, val in data["self"].items():
                 setattr(self, name, val)
 
-    def fit(self, vecs):
+    def fit(self, vecs, vec_tags=None):
         self.size = len(vecs)
         Node.init(self.size)
         self.vecs = vecs
         # print("initializing with %s and %s" % (repr(vecs[0]), repr(vecs[1])))
-        self.hierarchy = IHACHierarchy(len(vecs), vecs[0], vecs[1])
+        vec0_tag = vec_tags[0] if vec_tags else None
+        vec1_tag = vec_tags[1] if vec_tags else None
+        self.hierarchy = IHACHierarchy(len(vecs), vecs[0], vecs[1], vec0_tag, vec1_tag)
 
-        for vec in self.vecs[2:]:
+        for i, vec in enumerate(self.vecs[2:]):
             # print("processing " + repr(vec))
-            self.hierarchy.incorporate(vec)
+            vec_tag = vec_tags[2 + i] if vec_tags else None
+            self.hierarchy.incorporate(vec, vec_tag)
             # print("OK")
 
     def fit_more(self, vecs):
@@ -854,19 +877,29 @@ def test_3_clusters_2_dimensions():
 
 
 def test_with_articles(datapath):
+    N = 30
     articles, labels_true = load_articles(datapath)
 
-    vecs_file = 'test_articles.pickle'
+    articles, labels_true = articles[:N], labels_true[:N]
+
+    vecs_file = 'test_articles_%d.pickle' % N
     if not os.path.exists(vecs_file):
         vecs = build_vectors(articles, vecs_file)
     else:
         with open(vecs_file, 'rb') as f:
             vecs = pickle.load(f)
 
+
     ihac = IHAClusterer()
     vecs = vecs.toarray()
+    vec_tags = [art.title[:20] for art in articles]
+    ihac.fit(vecs, vec_tags)
 
-    ihac.fit(vecs)
+    with open("ihac_article_hierarchy_%d.txt" % N, "w") as outfile:
+        outfile.write(ihac.hierarchy.root.pretty_print())
+
+    # pretty print article hierarchy
+
 
 
 if __name__ == '__main__':
