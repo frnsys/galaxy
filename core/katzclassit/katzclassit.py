@@ -80,6 +80,13 @@ class KatzClassitNode:
         concept. This is the sum of the probability of each attribute value
         squared. 
         """
+
+        # replace with 
+        #     def contribution_utility(i, k):
+        # """The contribution of the attribute i towards 
+        # the Category Utility of the cluster k.
+        
+
         correct_guesses = 0.0
 
         for attr in self.av_counts:
@@ -774,6 +781,19 @@ class KatzClassitHierarchy:
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
 class KatzClassitClusterer(object):
     def __init__(self):
         pass
@@ -859,3 +879,83 @@ if __name__ == "__main__":
     tree.ifit({'a': 'v'})
     print(tree)
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+##################
+
+# First draft of Katz-based category utility function
+
+# TODO: figure out how to insert it in the above structure
+
+# TODO2: figure out if collection frequency is calculated relative to
+# * documents under current
+# * documents seen so far
+# * an external corpus
+
+
+
+    N = 6   #number of documents, we must calculate it from the previosly loaded
+            #data-structure 
+
+    def p0(word, doc_collection):
+        """Probability that the word does not occur in a document.
+        """
+        return 1 - df(word,doc_collection)/N
+        
+    def p(word, doc_collection):
+        """Probabiblity that the occurrence of the word is a repeat 
+        in a document.
+        """
+        return 1 - df(word,doc_collection)/cf(word,doc_collection)
+
+    def contribution_utility(i, k):
+        """The contribution of the attribute i towards 
+        the Category Utility of the cluster k.
+        """
+        p0  = p0(i,k)
+        pp  = p(i,k)
+        return (1 - 2*p0*(1 - p0) - pp*(1 - 2*p0))/(1 + pp)
+
+    def cf(i, doc_collection):
+        """Collection Frecuency = number of times word i occurred 
+           in the document collection.
+        """
+        count = 0
+        for k in doc_collection.elements:
+            count += k.word_count(i)        #only need to take the attribute value
+        return count
+
+    def df(i, doc_collection):
+        """Document Frequency = number of documents in the
+        entire collection that contain the word i.
+        """
+        count = 0
+        for k in doc_collection.elements:
+            if k.find_word(i):
+                count += 1
+        return count
+
+    def category_utility(cluster):
+        cluster_partition = cluster.children
+        K = len(cluster_partition)
+        CUp = 0      #category_utility result 
+        for k in K:  # looping on child clusters 
+            CUik = 0 # contribution_utility of attribute i to cluster k
+            CUip = 0 # contribution_utility of attribute i to parent_cluster
+            for i in cluster_partition[k].attributes():
+                CUik += contribution_utility(i,k)
+                CUip += contribution_utility(i,cluster)
+            CUp += P(cluster_partition[k])*(CUik - CUip)    
+        return CUp  
