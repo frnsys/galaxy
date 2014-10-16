@@ -583,7 +583,7 @@ class IHACHierarchy(object):
                     self.repair_homogeneity(ni)
                 if type(nj) is ClusterNode:
                     self.repair_homogeneity(nj)
-    
+
     def fcluster(self, distance_threshold=None):
         """
         Creates flat clusters by pruning all clusters
