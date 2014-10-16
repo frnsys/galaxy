@@ -18,6 +18,9 @@ class Node():
             return [ch for ch in self.parent.children if ch.id != self.id]
         return []
 
+    def __repr__(self):
+        return str('<Node {0} ({1})>'.format(self.center, self.id))
+
     def forms_lower_dense_region(self, C):
         """
         Let C be a homogenous cluster. 
@@ -50,31 +53,36 @@ class Node():
 
 
 class LeafNode(Node):
-    def __init__(self, id, vec, parent=None):
+    def __init__(self, id, vec):
         self.id = id
-        self.parent = parent
         self.center = vec
+        self.parent = None
 
     @property
     def leaves(self):
         return [self]
 
     @property
+    def children(self):
+        return []
+
+    @property
     def is_root(self):
         return False
 
+    def __repr__(self):
+        return str('<LeafNode {0} ({1})>'.format(self.center, self.id))
+
 
 class ClusterNode(Node):
-    def __init__(self, id, children, parent, hierarchy):
+    def __init__(self, id, children, hierarchy):
         """
             A new cluster node is created by passing
             a list of children.
         """
-        if len(children) < 2: raise Exception
-
         self.id = id
-        self.parent = parent
         self.children = children
+        self.parent = None
 
         # A reference to the hierarchy to which this node belongs.
         # We can access the master distance matrix this way.
@@ -85,6 +93,9 @@ class ClusterNode(Node):
         self.center = np.mean([c.center for c in self.children], axis=0)
 
         self._update_children_dists()
+
+    def __repr__(self):
+        return str('<ClusterNode {0}, ndm {1}, nds {2}, ll {3}, ul {4} ({5})>'.format(self.center, self.nearest_dists_mean, self.nearest_dists_std, self.lower_limit, self.upper_limit, self.id))
 
     @property
     def leaves(self):
@@ -104,8 +115,7 @@ class ClusterNode(Node):
     def remove_child(self, child):
         child.parent = None
 
-        i = self.children.index(child)
-        del self.children[i]
+        self.children.remove(child)
 
         self.center = np.mean([c.center for c in self.children], axis=0)
 
@@ -127,8 +137,8 @@ class ClusterNode(Node):
         # Since the distance matrix is symmetric, it doesn't matter
         # which axis we use for the min.
         dist_mat = self.cdm
-        np.fill_diagonal(dist_mat, np.nan)
-        self.nearest_dists = np.nanmin(dist_mat, axis=0)
+        np.fill_diagonal(dist_mat, np.inf)
+        self.nearest_dists = np.min(dist_mat, axis=0)
         self.nearest_dists_mean = np.mean(self.nearest_dists)
         self.nearest_dists_std  = np.std(self.nearest_dists)
 
@@ -166,9 +176,10 @@ class ClusterNode(Node):
         for c in [c_i, c_j]:
             children = [self.children[i] for i in c]
             if len(children) == 1:
-                n = self.h.create_node(LeafNode, vec=children[0])
+                n = children[0]
+                self.hierarchy.update_distances(n)
             else:
-                n = self.h.create_node(ClusterNode, children=children)
+                n = self.hierarchy.create_node(ClusterNode, children=children)
             nodes.append(n)
         return nodes
 
@@ -222,11 +233,19 @@ class ClusterNode(Node):
 
     @property
     def lower_limit(self):
-        return self.nearest_dists_mean - self.nearest_dists_std
+        """
+        The lower limit, which just needs to be some function of
+        the nearest distance mean and the nearest distance standard deviation.
+        """
+        return 0.5 * (self.nearest_dists_mean - self.nearest_dists_std)
 
     @property
     def upper_limit(self):
-        return self.nearest_dists_mean + self.nearest_dists_std
+        """
+        The upper limit, which just needs to be some function of
+        the nearest distance mean and the nearest distance standard deviation.
+        """
+        return 1.5 * (self.nearest_dists_mean + self.nearest_dists_std)
 
     @property
     def is_root(self):

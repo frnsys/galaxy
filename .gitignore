@@ -16,4 +16,4 @@ index.css
 *.pickle
 VENV/*
 data/*
-
+*.png
