@@ -10,7 +10,7 @@ import scipy
 from random import choice
 from random import shuffle
 
-class CobwebNode:
+class KatzClassitNode:
     counter = 0
 
     def __init__(self, otherTree=None):
@@ -97,6 +97,10 @@ class CobwebNode:
         its children. This is used as the heuristic to guide the concept
         formation.
         """
+        # TODO: reimplement to use formula based on Katz distribution of 
+        # word frequency attributes
+
+
         if len(self.children) == 0:
             return 0.0
 
@@ -319,7 +323,7 @@ class CobwebNode:
         The basic hash function. This hashes the concept name, which is
         generated to be unique across concepts.
         """
-        return hash("CobwebNode" + str(self.concept_id))
+        return hash("KatzClassitNode" + str(self.concept_id))
 
     def gensym(self):
         """
@@ -421,12 +425,12 @@ class CobwebNode:
 
 
 
-class CobwebHierarchy:
+class KatzClassitHierarchy:
     def __init__(self):
         """
-        Initialize the tree with a CobwebNode
+        Initialize the tree with a KatzClassitNode
         """
-        self.root = CobwebNode()
+        self.root = KatzClassitNode()
 
     def __str__(self):
         return str(self.root)
@@ -437,14 +441,11 @@ class CobwebHierarchy:
         """
         return self.cobweb(instance)
 
-    def fit(self, list_of_instances):
+    def fit(self, vecs):
         """
         Call incremental fit on each element in a list of instances.
         """
-        # TODO rewrite this to get the optimal fit by continually reclustering
-        # until no change.
-        for i, instance in enumerate(list_of_instances):
-            #print("instance %i of %i" % (i, len(list_of_instances)))
+        for i, instance in enumerate(vecs):
             self.ifit(instance)
 
     def cobweb(self, instance):
@@ -479,7 +480,6 @@ class CobwebHierarchy:
                 action_cu, best_action = current.get_best_operation(instance,
                                                                     best1,
                                                                     best2)
-
                 if best1:
                     best1_cu, best1 = best1
                 if best2:
@@ -837,29 +837,20 @@ class KatzClassitClusterer(object):
 
 
 
-
-
-
-
-
-
-
-
-
 if __name__ == "__main__":
-    #Cobweb().predictions("data_files/cobweb_test.json", 10, 100)
-    #Cobweb().predictions("data_files/mushrooms.json", 30, 10)
-    #Cobweb().baseline_guesser("data_files/cobweb_test.json", 10, 100)
-    #print(Cobweb().cluster("cobweb_test.json", 10, 1))
+    #KatzClassit().predictions("data_files/cobweb_test.json", 10, 100)
+    #KatzClassit().predictions("data_files/mushrooms.json", 30, 10)
+    #KatzClassit().baseline_guesser("data_files/cobweb_test.json", 10, 100)
+    #print(KatzClassit().cluster("cobweb_test.json", 10, 1))
 
-    #t = Cobweb()
+    #t = KatzClassit()
     #print(t.sequential_prediction("cobweb_test.json", 10))
     #t.verify_counts()
 
     #test = {}
     #print(t.predict(test))
 
-    tree = CobwebTree()
+    tree = KatzClassitHierarchy()
     tree.ifit({'a': 'v', 'b': 'v'})
     tree.ifit({'a': 'v2'})
     tree.ifit({'a': 'v'})
