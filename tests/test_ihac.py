@@ -356,3 +356,7 @@ class ClusterNodeTest(unittest.TestCase):
 
         self.assertEqual(c_i.children, expected_i_children)
         self.assertEqual(c_j.children, expected_j_children)
+
+
+if __name__ == '__main__':
+    unittest.main()
