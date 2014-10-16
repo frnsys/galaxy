@@ -451,8 +451,6 @@ class ClusterNode(Node):
 
         G = nx.DiGraph()
         G.add_node(root_label)
-        pos = {}
-        pos[root_label] = (self.center, 1.0) if onedim else (0.5, 1)
         n_level = 0
         while current_level:
             next_level = []
@@ -463,18 +461,14 @@ class ClusterNode(Node):
                 for ch in n.children:
                     ch_label = ch.get_label()
                     G.add_node(ch_label)
-                    x_coord = ch.center if onedim else (i + 1) * step
-                    pos[ch_label] = (x_coord, 1.0 - 0.02 * n_level) 
                     G.add_edge(n_label, ch_label)
                     if type(ch) == ClusterNode:
                         next_level.append(ch)
             current_level = next_level
         
         plt.title("IHAC hierarchy")
-        # if not onedim:
-        #     pos = nx.spring_layout(G)
-
-        nx.draw(G, pos, with_labels=True, arrows=True)
+        pos = nx.graphviz_layout(G, prog='dot')
+        nx.draw(G, pos, with_labels=True, arrows=False)
 
         plt.show()
                
@@ -877,7 +871,7 @@ def test_3_clusters_2_dimensions():
 
 
 def test_with_articles(datapath):
-    N = 30
+    N = 40
     articles, labels_true = load_articles(datapath)
 
     articles, labels_true = articles[:N], labels_true[:N]
@@ -892,14 +886,11 @@ def test_with_articles(datapath):
 
     ihac = IHAClusterer()
     vecs = vecs.toarray()
-    vec_tags = [art.title[:20] for art in articles]
+    vec_tags = [art.title[:50] for art in articles]
     ihac.fit(vecs, vec_tags)
 
     with open("ihac_article_hierarchy_%d.txt" % N, "w") as outfile:
         outfile.write(ihac.hierarchy.root.pretty_print())
-
-    # pretty print article hierarchy
-
 
 
 if __name__ == '__main__':
