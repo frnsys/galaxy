@@ -460,8 +460,6 @@ class KatzClassitNode:
         return (1.0 * self.av_counts[word][val]) / self.doc_count
 
 
-
-
 class KatzClassitHierarchy:
     def __init__(self):
         """
@@ -771,10 +769,6 @@ class KatzClassitHierarchy:
             print("%0.2f" % (scipy.std(a)))
 
 
-
-
-
-
 class KatzClassitClusterer(object):
     def __init__(self):
         pass
@@ -834,6 +828,40 @@ class KatzClassitClusterer(object):
         leaf_ids = [l.id for l in self.hierarchy.leaves]
         self.labels_ = [dict_labels[lid] for lid in leaf_ids]
         return self.labels_
+
+
+
+def sparse_matrix_to_array_of_dicts(matrix):
+    pass
+
+def test_with_articles(datapath):
+    N = 40
+    articles, labels_true = load_articles(datapath)
+    articles, labels_true = articles[:N], labels_true[:N]
+
+    vecs_file = 'test_articles_%d.pickle' % N
+    if not os.path.exists(vecs_file):
+        vecs = build_vectors(articles, vecs_file)
+    else:
+        with open(vecs_file, 'rb') as f:
+            vecs = pickle.load(f)
+
+
+    hierarchy = KatzClassitHierarchy()
+    vecs = vecs.toarray()
+
+    # vecs is a sparse matrix
+    # where each row contains the non-zero attributes of an article
+    # we must turn it into an array of dict representations
+
+    artdicts = sparse_matrix_to_array_of_dicts(vecs)
+
+    vec_tags = [art.title[:50] for art in articles]
+    
+    hierarchy.fit(vecs, vec_tags)
+
+    with open("katzclassit_article_hierarchy_%d.txt" % N, "w") as outfile:
+        outfile.write(ihac.hierarchy.root.pretty_print())
 
 
 
