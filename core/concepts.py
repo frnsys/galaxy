@@ -5,16 +5,55 @@ Conceptor
 Concept extraction from text.
 """
 
+import os
 import json
 import string
+import pickle
 from urllib import request, error
 from urllib.parse import urlencode
 
 import ner
-from sklearn.feature_extraction.text import HashingVectorizer
+from sklearn.feature_extraction.text import TfidfTransformer, CountVectorizer, HashingVectorizer
+from sklearn.pipeline import Pipeline
+from sklearn.decomposition import TruncatedSVD
+from sklearn.preprocessing import Normalizer
 
 from conf import APP
 from core.vectorize import Tokenizer
+
+PIPELINE_PATH = os.path.expanduser(os.path.join(APP['PIPELINE_PATH'], 'concept_pipeline.pickle'))
+if os.path.isfile(PIPELINE_PATH):
+    PIPELINE = pickle.load(open(PIPELINE_PATH, 'rb'))
+else:
+    PIPELINE = False
+
+def train(docs):
+    """
+    Trains and serializes (pickles) a vectorizing pipeline
+    based on training data.
+
+    `min_df` is set to filter out extremely rare words,
+    since we don't want those to dominate the distance metric.
+
+    `max_df` is set to filter out extremely common words,
+    since they don't convey much information.
+    """
+    pipeline = Pipeline([
+        ('vectorizer', CountVectorizer(input='content', stop_words='english', lowercase=True, tokenizer=Tokenizer(), min_df=0.015, max_df=0.9)),
+        ('tfidf', TfidfTransformer(norm=None, use_idf=True, smooth_idf=True)),
+        ('feature_reducer', TruncatedSVD(n_components=100)),
+        ('normalizer', Normalizer(copy=False))
+    ])
+
+    print('Training on {0} docs...'.format(len(docs)))
+    pipeline.fit([concepts(doc) for doc in docs])
+
+    PIPELINE = pipeline
+
+    print('Serializing pipeline to {0}'.format(PIPELINE_PATH))
+    pipeline_file = open(PIPELINE_PATH, 'wb')
+    pickle.dump(pipeline, pipeline_file)
+    print('Training complete.')
 
 def strip(text):
     """
@@ -138,7 +177,7 @@ def concepts(docs, strategy='stanford'):
     return entities
 
 
-def vectorize(concepts):
+def vectorize_old(concepts):
     """
     This vectorizes a list or a string of concepts;
     the regular `vectorize` method is meant to vectorize text documents;
@@ -151,3 +190,17 @@ def vectorize(concepts):
         return h.transform([concepts]).toarray()[0]
     else:
         return h.transform(concepts)
+
+def vectorize(concepts):
+    """
+    Vectorizes a list of concepts using
+    a trained vectorizing pipeline.
+    """
+    if not PIPELINE:
+        raise Exception('No pipeline is loaded. Have you trained one yet?')
+
+    if type(concepts) is str:
+        # Extract and return the vector for the single document.
+        return PIPELINE.transform([concepts])[0]
+    else:
+        return PIPELINE.transform(concepts)
