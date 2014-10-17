@@ -111,7 +111,7 @@ class KatzClassitNode:
             p_of_child = child.doc_count / (1.0 * self.doc_count)
             child_correct_guesses += p_of_child * child.cu_k()
 
-        return ((child_correct_guesses - self.cu_k()) * 1.0 / k
+        return (child_correct_guesses - self.cu_k()) * 1.0 / k
     
     def cu_k(self):
         """
@@ -123,8 +123,6 @@ class KatzClassitNode:
         """
         correct_guesses = 0.0
         for word in self._df:
-            if word[0] == "_":
-                continue
             correct_guesses += self.cu_ik(word)
 
         return correct_guesses
@@ -777,9 +775,6 @@ class KatzClassitHierarchy:
 
 
 
-
-
-
 class KatzClassitClusterer(object):
     def __init__(self):
         pass
@@ -857,10 +852,10 @@ if __name__ == "__main__":
     #print(t.predict(test))
 
     tree = KatzClassitHierarchy()
-    tree.ifit({'a': 'v', 'b': 'v'})
-    tree.ifit({'a': 'v2'})
-    tree.ifit({'a': 'v'})
-    tree.ifit({'a': 'v'})
-    tree.ifit({'a': 'v'})
-    tree.ifit({'a': 'v'})
+    tree.ifit({'a': 2, 'b': 3})
+    tree.ifit({'a': 5, 'c': 2})
+    tree.ifit({'b': 1})
+    tree.ifit({'c': 2})
+    tree.ifit({'a': 3})
+    tree.ifit({'a': 2})
     print(tree)
