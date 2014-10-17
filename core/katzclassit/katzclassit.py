@@ -4,6 +4,9 @@
     a variant of COBWEB algorithm adapted for clustering
     of (vectorized) text articles, that uses
     the Katz distribution to model word frequency distributions
+
+    Each attribute (feature) is assumed to be the number of
+    occurrences of a particular word in the represented article
 """
 import json
 import scipy
@@ -20,8 +23,10 @@ class KatzClassitNode:
         """
         self.concept_id = self.gensym()
         #self.concept_name = "Concept" + self.gensym()
-        self.count = 0
+        self.doc_count = 0
         self.av_counts = {}
+        self._df = {}
+        self._cf = {}
         self.children = []
         self.parent = None
 
@@ -48,80 +53,129 @@ class KatzClassitNode:
 
         return temp
 
+    #####
+    # Category Utility, Probability and Counting
+    #####
+    # TODO: can we remove av_counts ?
     def increment_counts(self, instance):
         """
-        Increment the counts at the current node according to the specified
-        instance.
+        Increment the collection and document frequency counts
+        at the current node according to the specified instance.
 
         input:
-            instance: {a1: v1, a2: v2, ...} - a hashtable of attr and values. 
+            instance: {w1: v1, w2: v2, ...} - a hashtable of
+            occurring words and frequency values. 
         """
-        self.count += 1 
-        for attr in instance:
-            self.av_counts[attr] = self.av_counts.setdefault(attr,{})
-            self.av_counts[attr][instance[attr]] = (self.av_counts[attr].get(
-                instance[attr], 0) + 1)
+        self.doc_count += 1 
+        for word, fval in instance.items():
+            self.av_counts.setdefault(word, {})
+            self.av_counts[word].setdefault(fval, 0)
+            self.av_counts[word][fval] += 1
+
+            self._df.setdefault(word, 0)
+            self._df[word] += 1
+
+            self._cf.setdefault(word, 0)
+            self._cf[word] += fval
     
     def update_counts_from_node(self, node):
         """
-        Increments the counts of the current node by the amount in the specified
-        node.
+        Increments the counts of the current node
+        by the amounts in the specified node.
         """
-        self.count += node.count
-        for attr in node.av_counts:
-            for val in node.av_counts[attr]:
-                self.av_counts[attr] = self.av_counts.setdefault(attr,{})
-                self.av_counts[attr][val] = (self.av_counts[attr].get(val,0) +
-                                     node.av_counts[attr][val])
+        self.doc_count += node.doc_count
+        for word in node.av_counts:
+            for fval in node.av_counts[word]:
+                self.av_counts[word] = self.av_counts.setdefault(word,{})
+                self.av_counts[word].setdefault(fval, 0)
+                self.av_counts[word][fval] += node.av_counts[word][fval]
 
-    def expected_correct_guesses(self):
-        """
-        Returns the number of correct guesses that are expected from the given
-        concept. This is the sum of the probability of each attribute value
-        squared. 
-        """
+            self._df.setdefault(word, 0)
+            self._df[word] += node._df[word]
 
-        # replace with 
-        #     def contribution_utility(i, k):
-        # """The contribution of the attribute i towards 
-        # the Category Utility of the cluster k.
-        
-
-        correct_guesses = 0.0
-
-        for attr in self.av_counts:
-            if attr[0] == "_":
-                continue
-            for val in self.av_counts[attr]:
-                prob = (self.av_counts[attr][val] / (1.0 * self.count))
-                correct_guesses += (prob * prob)
-
-        return correct_guesses
+            self._cf.setdefault(word, 0)
+            self._cf[word] += node._cf[word]
 
     def category_utility(self):
         """
-        Returns the category utility of a particular division of a concept into
-        its children. This is used as the heuristic to guide the concept
-        formation.
+        Returns the category utility of a particular division of a concept
+        into its children. 
+        This is used as the heuristic to guide the concept formation.
         """
-        # TODO: reimplement to use formula based on Katz distribution of 
-        # word frequency attributes
-
-
-        if len(self.children) == 0:
+        k = len(self.children)
+        if k == 0:
             return 0.0
 
         child_correct_guesses = 0.0
-
         for child in self.children:
-            p_of_child = child.count / (1.0 * self.count)
-            child_correct_guesses += p_of_child * child.expected_correct_guesses()
+            p_of_child = child.doc_count / (1.0 * self.doc_count)
+            child_correct_guesses += p_of_child * child.cu_k()
 
-        return ((child_correct_guesses - self.expected_correct_guesses()) /
-                (1.0 * len(self.children)))
+        return ((child_correct_guesses - self.cu_k()) * 1.0 / k
+    
+    def cu_k(self):
+        """
+        Returns the number of correct guesses that are expected from
+        the given concept cluster
 
-    def get_best_operation(self, instance, best1, best2, 
-                            possible_ops=["best", "new", "merge", "split"]):
+        This is the sum of contributions of each attribute for the
+        current cluster node
+        """
+        correct_guesses = 0.0
+        for word in self._df:
+            if word[0] == "_":
+                continue
+            correct_guesses += self.cu_ik(word)
+
+        return correct_guesses
+
+    def cu_ik(self, word):
+        """
+        Computes the contribution of attribute towards
+        category utility of current node
+
+        (CU_ik)
+        """
+        p0  = self.p0(word)
+        pp  = self.p(word)
+        return (1 - 2*p0 * (1 - p0) - pp * (1 - 2*p0)) / (1 + pp)
+
+    def p0(self, word):
+        """ Probability that the word does not occur in a document
+            of the current cluster
+        """
+        return 1 - self.df(word)
+
+    def p(self, word):
+        """ Probabiblity that an occurrence of the word in a document
+            of current cluster is a repeat 
+        """
+        return 1 - self.df(word) / self.cf(word)
+
+    def df(self, word):
+        """ Document Frequency = number of documents in the
+            current cluster that contain the given word
+
+            (i.e: number of documents having an attribute for 
+            this word, as we assume absent frequency counts to
+            represent 0 occurrences of a word)
+        """
+        return self._df[word]
+
+    def cf(self, word):
+        """ Collection Frequency = total number of occurences of
+            the given word within the documents of the current cluster
+            
+            (i.e: the sum of frequency attributes among all instances)
+        """
+        return self._cf[word]
+
+
+    #####
+    # Control Structure methods
+    #####
+    def get_best_operation(self, instance, best1, best2,
+        possible_ops=["best", "new", "merge", "split"]):
         """
         Given a set of possible operations, find the best and return its cu and
         the action name.
@@ -156,7 +210,7 @@ class KatzClassitNode:
         into in terms of category utility.
 
         input:
-            instance: {a1: v1, a2: v2,...} - a hashtable of attr. and values. 
+            instance: {a1: v1, a2: v2,...} - a hashtable of word. and values. 
         output:
             (0.2,2),(0.1,3) - the category utility and indices for the two best
             children (the second tuple will be None if there is only 1 child).
@@ -209,7 +263,7 @@ class KatzClassitNode:
         Creates a new child (to the current node) with the counts initialized by
         the current node's counts.
         """
-        if self.count > 0:
+        if self.doc_count > 0:
             new = self.__class__(self)
             new.parent = self
             self.children.append(new)
@@ -351,7 +405,7 @@ class KatzClassitNode:
         Prints the categorization tree.
         """
         ret = str(('\t' * depth) + "|-" + str(self.av_counts) + ":" +
-                  str(self.count) + '\n')
+                  str(self.doc_count) + '\n')
         
         for c in self.children:
             ret += c.pretty_print(depth+1)
@@ -391,43 +445,21 @@ class KatzClassitNode:
            children_count += c.num_concepts() 
         return 1 + children_count 
 
-    def output_json(self):
-        """
-        Outputs the categorization tree in JSON form so that it can be
-        displayed, I usually visualize it with d3js in a web browser.
-        """
-        output = {}
-        output['name'] = "Concept" + self.concept_id
-        output['size'] = self.count
-        output['children'] = []
-
-        temp = {}
-        for attr in self.av_counts:
-            for value in self.av_counts[attr]:
-                temp[attr + " = " + str(value)] = self.av_counts[attr][value]
-
-        for child in self.children:
-            output['children'].append(child.output_json())
-
-        output['counts'] = temp
-
-        return output
-
-    def get_probability(self, attr, val):
+    def get_probability(self, word, val):
         """
         Gets the probability of a particular attribute value at the given
         concept.
 
         """
-        while attr not in self.av_counts:
+        while word not in self.av_counts:
             if not self.parent:
                 return 0.0
             self = self.parent
 
-        if val not in self.av_counts[attr]:
+        if val not in self.av_counts[word]:
             return 0.0
 
-        return (1.0 * self.av_counts[attr][val]) / self.count
+        return (1.0 * self.av_counts[word][val]) / self.doc_count
 
 
 
@@ -563,30 +595,30 @@ class KatzClassitHierarchy:
         prediction = {}
 
         # make a copy of the instance
-        for attr in instance:
-            prediction[attr] = instance[attr]
+        for word in instance:
+            prediction[word] = instance[word]
 
         concept = self.cobweb_categorize(instance)
         
-        for attr in concept.av_counts:
-            if attr in prediction:
+        for word in concept.av_counts:
+            if word in prediction:
                 continue
             
             values = []
-            for val in concept.av_counts[attr]:
-                values += [val] * concept.av_counts[attr][val]
+            for val in concept.av_counts[word]:
+                values += [val] * concept.av_counts[word][val]
 
-            prediction[attr] = choice(values)
+            prediction[word] = choice(values)
 
         return prediction
 
-    def concept_attr_value(self, instance, attr, val):
+    def concept_attr_value(self, instance, word, val):
         """
         Gets the probability of a particular attribute value for the concept
         associated with a given instance.
         """
         concept = self.cobweb_categorize(instance)
-        return concept.get_probability(attr, val)
+        return concept.get_probability(word, val)
 
     def flexible_prediction(self, instance, guessing=False):
         """
@@ -595,53 +627,18 @@ class KatzClassitHierarchy:
         instance first). It then returns the average accuracy. 
         """
         probs = []
-        for attr in instance:
+        for word in instance:
             temp = {}
-            for attr2 in instance:
-                if attr == attr2:
+            for word2 in instance:
+                if word == word2:
                     continue
-                temp[attr2] = instance[attr2]
+                temp[word2] = instance[word2]
             if guessing:
-                probs.append(self.get_probability(attr, instance[attr]))
+                probs.append(self.get_probability(word, instance[word]))
             else:
-                probs.append(self.concept_attr_value(temp, attr, instance[attr]))
+                probs.append(self.concept_word_value(temp, word, instance[word]))
         return sum(probs) / len(probs)
 
-    def train_from_json(self, filename, length=None):
-        """
-        Build the concept tree from a set of examples in a provided json file.
-        """
-        json_data = open(filename, "r")
-        instances = json.load(json_data)
-        if length:
-            shuffle(instances)
-            instances = instances[:length]
-        self.fit(instances)
-        json_data.close()
-
-    def sequential_prediction(self, filename, length, guessing=False):
-        """
-        Given a json file, perform an incremental sequential prediction task. 
-        Try to flexibly predict each instance before incorporating it into the 
-        tree. This will give a type of cross validated result.
-        """
-        json_data = open(filename, "r")
-        instances = json.load(json_data)
-        #shuffle(instances)
-        #instances = instances[0:length]
-
-        accuracy = []
-        nodes = []
-        for j in range(1):
-            shuffle(instances)
-            for n, i in enumerate(instances):
-                if n >= length:
-                    break
-                accuracy.append(self.flexible_prediction(i, guessing))
-                nodes.append(self.num_concepts())
-                self.ifit(i)
-        json_data.close()
-        return accuracy, nodes
 
     def cluster(self, instances, depth=1):
         """
@@ -783,17 +780,6 @@ class KatzClassitHierarchy:
 
 
 
-
-
-
-
-
-
-
-
-
-
-
 class KatzClassitClusterer(object):
     def __init__(self):
         pass
@@ -878,84 +864,3 @@ if __name__ == "__main__":
     tree.ifit({'a': 'v'})
     tree.ifit({'a': 'v'})
     print(tree)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-##################
-
-# First draft of Katz-based category utility function
-
-# TODO: figure out how to insert it in the above structure
-
-# TODO2: figure out if collection frequency is calculated relative to
-# * documents under current
-# * documents seen so far
-# * an external corpus
-
-
-
-    N = 6   #number of documents, we must calculate it from the previosly loaded
-            #data-structure 
-
-    def p0(word, doc_collection):
-        """Probability that the word does not occur in a document.
-        """
-        return 1 - df(word,doc_collection)/N
-        
-    def p(word, doc_collection):
-        """Probabiblity that the occurrence of the word is a repeat 
-        in a document.
-        """
-        return 1 - df(word,doc_collection)/cf(word,doc_collection)
-
-    def contribution_utility(i, k):
-        """The contribution of the attribute i towards 
-        the Category Utility of the cluster k.
-        """
-        p0  = p0(i,k)
-        pp  = p(i,k)
-        return (1 - 2*p0*(1 - p0) - pp*(1 - 2*p0))/(1 + pp)
-
-    def cf(i, doc_collection):
-        """Collection Frecuency = number of times word i occurred 
-           in the document collection.
-        """
-        count = 0
-        for k in doc_collection.elements:
-            count += k.word_count(i)        #only need to take the attribute value
-        return count
-
-    def df(i, doc_collection):
-        """Document Frequency = number of documents in the
-        entire collection that contain the word i.
-        """
-        count = 0
-        for k in doc_collection.elements:
-            if k.find_word(i):
-                count += 1
-        return count
-
-    def category_utility(cluster):
-        cluster_partition = cluster.children
-        K = len(cluster_partition)
-        CUp = 0      #category_utility result 
-        for k in K:  # looping on child clusters 
-            CUik = 0 # contribution_utility of attribute i to cluster k
-            CUip = 0 # contribution_utility of attribute i to parent_cluster
-            for i in cluster_partition[k].attributes():
-                CUik += contribution_utility(i,k)
-                CUip += contribution_utility(i,cluster)
-            CUp += P(cluster_partition[k])*(CUik - CUip)    
-        return CUp  
