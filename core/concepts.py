@@ -19,13 +19,30 @@ from sklearn.decomposition import TruncatedSVD
 from sklearn.preprocessing import Normalizer
 
 from conf import APP
-from core.vectorize import Tokenizer
+
+class ConceptTokenizer():
+    """
+    Custom tokenizer for concept vectorization.
+    """
+    def __call__(self, doc):
+        return tokenize(doc)
 
 PIPELINE_PATH = os.path.expanduser(os.path.join(APP['PIPELINE_PATH'], 'concept_pipeline.pickle'))
 if os.path.isfile(PIPELINE_PATH):
     PIPELINE = pickle.load(open(PIPELINE_PATH, 'rb'))
 else:
     PIPELINE = False
+
+def tokenize(doc):
+    """
+    Tokenize a document of ONLY concepts.
+    It is expected that the concepts are delimited by '||'.
+
+    e.g::
+
+        'United States of America||China||Russia'
+    """
+    return doc.split('||')
 
 def train(docs):
     """
@@ -39,14 +56,20 @@ def train(docs):
     since they don't convey much information.
     """
     pipeline = Pipeline([
-        ('vectorizer', CountVectorizer(input='content', stop_words='english', lowercase=True, tokenizer=Tokenizer(), min_df=0.015, max_df=0.9)),
+        ('vectorizer', CountVectorizer(input='content', stop_words='english', lowercase=True, tokenizer=ConceptTokenizer(), min_df=0.015, max_df=0.9)),
         ('tfidf', TfidfTransformer(norm=None, use_idf=True, smooth_idf=True)),
         ('feature_reducer', TruncatedSVD(n_components=100)),
         ('normalizer', Normalizer(copy=False))
     ])
 
     print('Training on {0} docs...'.format(len(docs)))
-    pipeline.fit([concepts(doc) for doc in docs])
+
+    import json
+    with open('concepts.json', 'r') as input:
+        cons = json.load(input)
+
+    #pipeline.fit([concepts(doc) for doc in docs])
+    pipeline.fit(['||'.join(c) for c in cons])
 
     PIPELINE = pipeline
 
