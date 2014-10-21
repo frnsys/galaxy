@@ -7,7 +7,7 @@ from scipy.cluster.hierarchy import linkage, fcluster
 import numpy as np
 from sklearn.metrics.pairwise import pairwise_distances
 
-from .ihacluster import IHAClusterer
+from .ihac.hierarchy import IHACHierarchy
 
 def hac(vecs, metric, linkage_method, threshold):
     """

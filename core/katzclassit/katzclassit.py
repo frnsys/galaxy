@@ -10,8 +10,11 @@
 """
 import json
 import scipy
+import pickle
 from random import choice
 from random import shuffle
+from eval.data import load_articles, build_vectors
+import os
 
 class KatzClassitNode:
     counter = 0
@@ -29,6 +32,7 @@ class KatzClassitNode:
         self._cf = {}
         self.children = []
         self.parent = None
+        self.label = None
 
         # check if the constructor is being used as a copy constructor
         if otherTree:
@@ -398,17 +402,25 @@ class KatzClassitNode:
         """
         return self.pretty_print()
 
+
     def pretty_print(self, depth=0):
         """
         Prints the categorization tree.
         """
-        ret = str(('\t' * depth) + "|-" + str(self.av_counts) + ":" +
-                  str(self.doc_count) + '\n')
+        ret = ('\t' * depth) + "|- %s: \n" % self.get_label()
         
         for c in self.children:
             ret += c.pretty_print(depth+1)
 
         return ret
+
+
+    def get_label(self):
+        # TODO: add labels
+        if self.label:
+            return self.label
+        else:
+            return str(self.concept_id)    
 
     def depth(self):
         """
@@ -480,7 +492,7 @@ class KatzClassitHierarchy:
         """
         Call incremental fit on each element in a list of instances.
         """
-        for i, instance in enumerate(vecs):
+        for instance in vecs:
             self.ifit(instance)
 
     def cobweb(self, instance):
@@ -821,8 +833,6 @@ class KatzClassitClusterer(object):
         self.size += len(vecs)
         self.labels_ = None # reset labels
 
-
-
     def get_labels(self):
         _, dict_labels = self.hierarchy.fcluster()
         leaf_ids = [l.id for l in self.hierarchy.leaves]
@@ -830,55 +840,36 @@ class KatzClassitClusterer(object):
         return self.labels_
 
 
+def sparse_matrix_to_array_of_dicts(matrix):
+    """
+    Takes a sparse_coo matrix whose rows represent feature vectors of articles
+    Returns a dictionary format to use on katzclassit & cobweb tests.
+    """
+    nz_data = matrix.nonzero()    # non zero values
+    # all_data = matrix.toarray()
+    import ipdb; ipdb.set_trace()
+    N = matrix.shape[0]           # number of articles
+    res = [{}] * N
+    for i, j in zip(nz_data[0], nz_data[1]):
+        res[i][str(j)] = all_data[i][j]
+    return res
+
 
 def sparse_matrix_to_array_of_dicts(matrix):
-    pass
-
-def test_with_articles(datapath):
-    N = 40
-    articles, labels_true = load_articles(datapath)
-    articles, labels_true = articles[:N], labels_true[:N]
-
-    vecs_file = 'test_articles_%d.pickle' % N
-    if not os.path.exists(vecs_file):
-        vecs = build_vectors(articles, vecs_file)
-    else:
-        with open(vecs_file, 'rb') as f:
-            vecs = pickle.load(f)
+    """
+    Takes a sparse_coo matrix whose rows represent feature vectors of articles
+    Returns a dictionary format to use on katzclassit & cobweb tests.
+    """
+    nz_data = matrix.nonzero()    # non zero values
+    all_data = matrix.toarray()
+    N = matrix.shape[0]           # number of articles
+    res = [{}] * N
+    for i, j in zip(nz_data[0], nz_data[1]):
+        res[i][str(j)] = all_data[i][j]
+    return res
 
 
-    hierarchy = KatzClassitHierarchy()
-    vecs = vecs.toarray()
-
-    # vecs is a sparse matrix
-    # where each row contains the non-zero attributes of an article
-    # we must turn it into an array of dict representations
-
-    artdicts = sparse_matrix_to_array_of_dicts(vecs)
-
-    vec_tags = [art.title[:50] for art in articles]
-    
-    hierarchy.fit(vecs, vec_tags)
-
-    with open("katzclassit_article_hierarchy_%d.txt" % N, "w") as outfile:
-        outfile.write(ihac.hierarchy.root.pretty_print())
-
-
-
-
-if __name__ == "__main__":
-    #KatzClassit().predictions("data_files/cobweb_test.json", 10, 100)
-    #KatzClassit().predictions("data_files/mushrooms.json", 30, 10)
-    #KatzClassit().baseline_guesser("data_files/cobweb_test.json", 10, 100)
-    #print(KatzClassit().cluster("cobweb_test.json", 10, 1))
-
-    #t = KatzClassit()
-    #print(t.sequential_prediction("cobweb_test.json", 10))
-    #t.verify_counts()
-
-    #test = {}
-    #print(t.predict(test))
-
+def test_simple():
     tree = KatzClassitHierarchy()
     tree.ifit({'a': 2, 'b': 3})
     tree.ifit({'a': 5, 'c': 2})
@@ -887,3 +878,32 @@ if __name__ == "__main__":
     tree.ifit({'a': 3})
     tree.ifit({'a': 2})
     print(tree)
+
+def test_with_articles(datapath):
+    N = 40
+    articles, labels_true = load_articles(datapath)
+    articles, labels_true = articles[:N], labels_true[:N]
+
+    vecs_file = '../testdata/test_articles_%d.pickle' % N
+    if not os.path.exists(vecs_file):
+        vecs = build_vectors(articles, vecs_file)
+    else:
+        with open(vecs_file, 'rb') as f:
+            vecs = pickle.load(f)
+
+    hierarchy = KatzClassitHierarchy()
+
+    artdicts = sparse_matrix_to_array_of_dicts(vecs)
+
+    vec_tags = [art.title[:50] for art in articles]
+
+    # TODO: add labels to nodes
+    # hierarchy.fit(vecs, vec_tags)
+    
+    hierarchy.fit(artdicts)
+
+    print(hierarchy.root.pretty_print())
+
+
+if __name__ == "__main__":
+    test_with_articles('../../eval/data/event/handpicked.json')

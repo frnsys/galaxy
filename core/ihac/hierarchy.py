@@ -15,7 +15,7 @@ from .util import mirror_upper, triu_index
 def distance(i, j):
     return euclidean(i, j)
 
-class Hierarchy():
+class IHACHierarchy():
     """
     A hierarchy manages many nodes.
     It has a master distance matrix which keeps track
@@ -91,7 +91,7 @@ class Hierarchy():
 
     def restructure(self, n_h):
         """
-        Algorithm Hierarchy Restructuring:
+        Algorithm IHACHierarchy Restructuring:
 
         Starting from the host node n_h, we traverse ancestors doing
         the following:
