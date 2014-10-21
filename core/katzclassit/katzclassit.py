@@ -19,7 +19,7 @@ import os
 class KatzClassitNode:
     counter = 0
 
-    def __init__(self, otherTree=None):
+    def __init__(self, otherTree=None, label=None):
         """
         The constructor creates a cobweb node with default values. It can also
         be used as a copy constructor to "deepcopy" a node.
@@ -32,7 +32,7 @@ class KatzClassitNode:
         self._cf = {}
         self.children = []
         self.parent = None
-        self.label = None
+        self.label = label
 
         # check if the constructor is being used as a copy constructor
         if otherTree:
@@ -249,12 +249,12 @@ class KatzClassitNode:
                 temp_child.increment_counts(instance)
         return temp.category_utility()
 
-    def create_new_child(self, instance):
+    def create_new_child(self, instance, label=None):
         """
         Creates a new child (to the current node) with the counts initialized by
         the given instance. 
         """
-        new_child = self.__class__()
+        new_child = self.__class__(label=label)
         new_child.parent = self
         new_child.increment_counts(instance)
         self.children.append(new_child)
@@ -482,20 +482,25 @@ class KatzClassitHierarchy:
     def __str__(self):
         return str(self.root)
 
-    def ifit(self, instance):
+    def ifit(self, instance, label):
         """
         Given an instance incrementally update the categorization tree.
         """
-        return self.cobweb(instance)
+        return self.cobweb(instance, label)
 
-    def fit(self, vecs):
+    def fit(self, vecs, labels=None):
         """
         Call incremental fit on each element in a list of instances.
         """
-        for instance in vecs:
-            self.ifit(instance)
+        print("%d articles will be processed" % len(vecs))
+        for i, instance in enumerate(vecs):
+            label = labels[i] if labels else None
+            self.ifit(instance, label=label)
+            if i % 5 == 0:
+                print("%d articles processed" % i)
 
-    def cobweb(self, instance):
+
+    def cobweb(self, instance, label=None):
         """
         Incrementally integrates an instance into the categorization tree.
         This function operates iteratively to integrate this instance and uses
@@ -521,7 +526,7 @@ class KatzClassitHierarchy:
                     self.root = new
 
                 new.increment_counts(instance)
-                return new.create_new_child(instance)
+                return new.create_new_child(instance, label)
             else:
                 best1, best2 = current.two_best_children(instance)
                 action_cu, best_action = current.get_best_operation(instance,
@@ -537,7 +542,7 @@ class KatzClassitHierarchy:
                     current = best1
                 elif best_action == 'new':
                     current.increment_counts(instance)
-                    return current.create_new_child(instance)
+                    return current.create_new_child(instance, label)
                 elif best_action == 'merge':
                     current.increment_counts(instance)
                     new_child = current.merge(best1, best2)
@@ -846,8 +851,7 @@ def sparse_matrix_to_array_of_dicts(matrix):
     Returns a dictionary format to use on katzclassit & cobweb tests.
     """
     nz_data = matrix.nonzero()    # non zero values
-    # all_data = matrix.toarray()
-    import ipdb; ipdb.set_trace()
+    all_data = matrix.toarray()
     N = matrix.shape[0]           # number of articles
     res = [{}] * N
     for i, j in zip(nz_data[0], nz_data[1]):
@@ -860,14 +864,12 @@ def sparse_matrix_to_array_of_dicts(matrix):
     Takes a sparse_coo matrix whose rows represent feature vectors of articles
     Returns a dictionary format to use on katzclassit & cobweb tests.
     """
-    nz_data = matrix.nonzero()    # non zero values
-    all_data = matrix.toarray()
     N = matrix.shape[0]           # number of articles
     res = [{}] * N
-    for i, j in zip(nz_data[0], nz_data[1]):
-        res[i][str(j)] = all_data[i][j]
+    for i, j, v in zip(matrix.row, matrix.col, matrix.data):
+        if v > 0:
+            res[i][str(j)] = v
     return res
-
 
 def test_simple():
     tree = KatzClassitHierarchy()
@@ -879,8 +881,9 @@ def test_simple():
     tree.ifit({'a': 2})
     print(tree)
 
+
 def test_with_articles(datapath):
-    N = 40
+    N = 70
     articles, labels_true = load_articles(datapath)
     articles, labels_true = articles[:N], labels_true[:N]
 
@@ -895,12 +898,9 @@ def test_with_articles(datapath):
 
     artdicts = sparse_matrix_to_array_of_dicts(vecs)
 
-    vec_tags = [art.title[:50] for art in articles]
-
-    # TODO: add labels to nodes
-    # hierarchy.fit(vecs, vec_tags)
+    labels = [art.title for art in articles]
     
-    hierarchy.fit(artdicts)
+    hierarchy.fit(artdicts, labels)
 
     print(hierarchy.root.pretty_print())
 
