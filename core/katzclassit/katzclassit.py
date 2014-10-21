@@ -13,8 +13,11 @@ import scipy
 import pickle
 from random import choice
 from random import shuffle
+from utils import sparse_matrix_to_array_of_dicts #, load_articles, build_vectors
+# TODO: implement custom vectorization and replace this
 from eval.data import load_articles, build_vectors
 import os
+
 
 class KatzClassitNode:
     counter = 0
@@ -845,32 +848,6 @@ class KatzClassitClusterer(object):
         return self.labels_
 
 
-def sparse_matrix_to_array_of_dicts(matrix):
-    """
-    Takes a sparse_coo matrix whose rows represent feature vectors of articles
-    Returns a dictionary format to use on katzclassit & cobweb tests.
-    """
-    nz_data = matrix.nonzero()    # non zero values
-    all_data = matrix.toarray()
-    N = matrix.shape[0]           # number of articles
-    res = [{}] * N
-    for i, j in zip(nz_data[0], nz_data[1]):
-        res[i][str(j)] = all_data[i][j]
-    return res
-
-
-def sparse_matrix_to_array_of_dicts(matrix):
-    """
-    Takes a sparse_coo matrix whose rows represent feature vectors of articles
-    Returns a dictionary format to use on katzclassit & cobweb tests.
-    """
-    N = matrix.shape[0]           # number of articles
-    res = [{}] * N
-    for i, j, v in zip(matrix.row, matrix.col, matrix.data):
-        if v > 0:
-            res[i][str(j)] = v
-    return res
-
 def test_simple():
     tree = KatzClassitHierarchy()
     tree.ifit({'a': 2, 'b': 3})
@@ -883,11 +860,11 @@ def test_simple():
 
 
 def test_with_articles(datapath):
-    N = 70
+    N = 10
     articles, labels_true = load_articles(datapath)
     articles, labels_true = articles[:N], labels_true[:N]
 
-    vecs_file = '../testdata/test_articles_%d.pickle' % N
+    vecs_file = 'kc_test_articles_%d.pickle' % N
     if not os.path.exists(vecs_file):
         vecs = build_vectors(articles, vecs_file)
     else:
