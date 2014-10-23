@@ -7,7 +7,6 @@ def split_dist_matrix(dist_matrix, overwrite=False):
     # `overwrite=True` will make changes in place, which is more efficient.
     mst = minimum_spanning_tree(csr_matrix(dist_matrix), overwrite=overwrite)
     mst = mst.toarray()
-    print(mst)
 
     # Get the index of the maximum value.
     # `argmax` returns the index of the _flattened_ array;
