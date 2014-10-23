@@ -63,15 +63,6 @@ def train(docs, n_components=100):
     ])
 
     print('Training on {0} docs...'.format(len(docs)))
-
-    # for comparing feature reduction
-    # cheat and load the existing concepts
-    #import json
-    #with open('concepts.json', 'r') as input:
-        #cons = ['||'.join(c) for c in json.load(input)]
-    #pipeline.fit(cons)
-    # ------------------
-
     pipeline.fit(['||'.join(concepts(doc)) for doc in docs])
 
     PIPELINE = pipeline
@@ -216,6 +207,7 @@ def vectorize_old(concepts):
         return h.transform([concepts]).toarray()[0]
     else:
         return h.transform(concepts)
+
 
 def vectorize(concepts):
     """
