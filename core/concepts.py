@@ -44,7 +44,7 @@ def tokenize(doc):
     """
     return doc.split('||')
 
-def train(docs):
+def train(docs, n_components=100):
     """
     Trains and serializes (pickles) a vectorizing pipeline
     based on training data.
@@ -56,20 +56,23 @@ def train(docs):
     since they don't convey much information.
     """
     pipeline = Pipeline([
-        ('vectorizer', CountVectorizer(input='content', stop_words='english', lowercase=True, tokenizer=ConceptTokenizer(), min_df=0.015, max_df=0.9)),
+        ('vectorizer', CountVectorizer(input='content', stop_words='english', lowercase=True, tokenizer=ConceptTokenizer(), min_df=0.0, max_df=0.9)),
         ('tfidf', TfidfTransformer(norm=None, use_idf=True, smooth_idf=True)),
-        ('feature_reducer', TruncatedSVD(n_components=100)),
+        ('feature_reducer', TruncatedSVD(n_components=n_components)),
         ('normalizer', Normalizer(copy=False))
     ])
 
     print('Training on {0} docs...'.format(len(docs)))
 
-    import json
-    with open('concepts.json', 'r') as input:
-        cons = json.load(input)
+    # for comparing feature reduction
+    # cheat and load the existing concepts
+    #import json
+    #with open('concepts.json', 'r') as input:
+        #cons = ['||'.join(c) for c in json.load(input)]
+    #pipeline.fit(cons)
+    # ------------------
 
-    #pipeline.fit([concepts(doc) for doc in docs])
-    pipeline.fit(['||'.join(c) for c in cons])
+    pipeline.fit(['||'.join(concepts(doc)) for doc in docs])
 
     PIPELINE = pipeline
 
@@ -207,7 +210,7 @@ def vectorize_old(concepts):
     it is trained for that kind of data and thus is inappropriate for concepts.
     So instead we just use a simple hashing vectorizer.
     """
-    h = HashingVectorizer(input='content', stop_words='english', norm=None, tokenizer=Tokenizer())
+    h = HashingVectorizer(input='content', stop_words='english', norm=None, tokenizer=ConceptTokenizer())
     if type(concepts) is str:
         # Extract and return the vector for the single document.
         return h.transform([concepts]).toarray()[0]
