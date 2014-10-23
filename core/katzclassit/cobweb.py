@@ -5,7 +5,7 @@
     Included here just for comparison with Katz-CLASSIT variant
 """
 import json
-import utils
+import scipy
 from random import choice
 from random import shuffle
 
@@ -283,7 +283,7 @@ class CobwebTree:
             a = []
             for r in runs:
                 a.append(r[i])
-            print("%0.2f" % (utils.mean(a)))
+            print("%0.2f" % (scipy.mean(a)))
 
         print()
         print("STD Accuracy")
@@ -291,7 +291,7 @@ class CobwebTree:
             a = []
             for r in runs:
                 a.append(r[i])
-            print("%0.2f" % (utils.std(a)))
+            print("%0.2f" % (scipy.std(a)))
 
         print()
         print("MEAN Concepts")
@@ -299,7 +299,7 @@ class CobwebTree:
             a = []
             for r in nodes:
                 a.append(r[i])
-            print("%0.2f" % (utils.mean(a)))
+            print("%0.2f" % (scipy.mean(a)))
 
         print()
         print("STD Concepts")
@@ -307,7 +307,7 @@ class CobwebTree:
             a = []
             for r in nodes:
                 a.append(r[i])
-            print("%0.2f" % (utils.std(a)))
+            print("%0.2f" % (scipy.std(a)))
 
     def predictions(self, filename, length, iterations):
         """
@@ -331,7 +331,7 @@ class CobwebTree:
             a = []
             for r in runs:
                 a.append(r[i])
-            print("%0.2f" % (utils.mean(a)))
+            print("%0.2f" % (scipy.mean(a)))
 
         print()
         print("STD Accuracy")
@@ -339,7 +339,7 @@ class CobwebTree:
             a = []
             for r in runs:
                 a.append(r[i])
-            print("%0.2f" % (utils.std(a)))
+            print("%0.2f" % (scipy.std(a)))
 
         print()
         print("MEAN Concepts")
@@ -347,7 +347,7 @@ class CobwebTree:
             a = []
             for r in nodes:
                 a.append(r[i])
-            print("%0.2f" % (utils.mean(a)))
+            print("%0.2f" % (scipy.mean(a)))
 
         print()
         print("STD Concepts")
@@ -355,7 +355,7 @@ class CobwebTree:
             a = []
             for r in nodes:
                 a.append(r[i])
-            print("%0.2f" % (utils.std(a)))
+            print("%0.2f" % (scipy.std(a)))
 
 class CobwebNode:
 

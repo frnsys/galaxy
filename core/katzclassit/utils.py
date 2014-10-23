@@ -42,27 +42,6 @@ def c4(n) :
     else :
         return c4n_table[n] if n < 30 else 1.0
 
-def mean(values):
-    """
-    Computes the mean of a list of values.
-    """
-    if len(values) <= 0:
-        raise ValueError("Length of list must be greater than 0.")
-
-    return float(sum(values))/len(values)
-
-def std(values):
-    """
-    Computes the standard deviation of a list of values.
-    """
-    if len(values) <= 0:
-        raise ValueError("Length of list must be greater than 0.")
-
-    meanValue = mean(values)
-    variance =  float(sum([(v - meanValue) * (v - meanValue) for v in
-                           values]))/len(values)
-    return math.sqrt(variance)
-
 class ContinuousValue():
     def __init__(self):
         """
@@ -140,7 +119,7 @@ def sparse_matrix_to_array_of_dicts(matrix):
     Returns a dictionary format to use on katzclassit & cobweb tests.
     """
     N = matrix.shape[0]           # number of articles
-    res = [{}] * N
+    res = [{} for i in range(N)]    
     for i, j, v in zip(matrix.row, matrix.col, matrix.data):
         if v > 0:
             res[i][str(j)] = v
