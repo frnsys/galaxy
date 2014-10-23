@@ -2,6 +2,7 @@ import sys
 import json
 
 from core.vectorize import train
+from core import concepts
 from eval import evaluate, test
 
 cmd = sys.argv[1]
@@ -14,6 +15,7 @@ if cmd == 'train':
 
     docs = ['{0} {1}'.format(d['title'], d['text']) for d in training_data]
     train(docs)
+    concepts.train(docs)
 
 
 # Test the clustering on a dataset that has labels.

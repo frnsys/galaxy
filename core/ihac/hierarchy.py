@@ -45,7 +45,8 @@ class IHACHierarchy():
         self.root.nearest_dists_std  = 1.0
         # We set the std to be > 0 so that there's some space for non-identical nodes
         # to join this cluster. Otherwise, only identical nodes would be able to join.
-        # This value is kind of arbitrary...there's probably some way of determining a good starting value.
+        # This value is kind of arbitrary...there's probably some way of determining
+        # a good starting value.
 
     def incorporate(self, vec):
         """
@@ -64,7 +65,7 @@ class IHACHierarchy():
                 break
 
             # Otherwise, n forms a higher dense region with n_cp
-            # (i.e. if d < n_cp.lower_limit)...
+            # (i.e. if d > n_cp.lower_limit)...
             elif d <= n_cp.lower_limit:
                 # And if n forms a lower dense region with at least one of n_cp's children...
                 for ch in [ch for ch in n_cp.children if type(ch) is ClusterNode]:
@@ -320,8 +321,11 @@ class IHACHierarchy():
             n_p.remove_child(n)
             n_p.add_child(n_i)
             n_p.add_child(n_j)
-        # TO DO: need to delete the cluster node n from the distance matrix and reclaim its id?
-        # or could we just reuse one of the old cluster nodes?
+
+        # Delete the original cluster (and then its id will be reused).
+        # But first we have to separate it from its children.
+        n.children = []
+        self.delete_node(n)
         return n_i, n_j
 
     def fcluster(self, distance_threshold=None):
@@ -339,8 +343,6 @@ class IHACHierarchy():
 
         clusters = [clus for clus in self._snip([self.root], distance_threshold)]
         return clusters
-        #labels = [[i for j in range(len(clus))] for (i, clus) in enumerate(clusters)]
-        #return clusters, labels
 
     def _snip(self, nodes, distance_threshold):
         """
@@ -354,7 +356,6 @@ class IHACHierarchy():
                 continue
 
             elif type(n) is ClusterNode:
-                print('found cluster node')
                 # If this cluster satisfies the distance threshold,
                 # stop this branch here.
                 if n.nearest_dists_mean <= distance_threshold:

@@ -7,6 +7,49 @@ from scipy.spatial.distance import euclidean
 
 from core.ihac.node import LeafNode, ClusterNode
 from core.ihac.hierarchy import Hierarchy
+from core.ihac import IHAC
+
+
+class IHACTest(unittest.TestCase):
+    def setUp(self):
+        self.ihac = IHAC()
+
+    def test_labels(self):
+        points_1 = [np.array([p]) for p in np.arange(0.1, 1.0, 0.1)]
+        points_2 = [np.array([p]) for p in np.arange(20.0, 21.0, 0.1)]
+        points_3 = [np.array([p]) for p in np.arange(0.1, 1.0, 0.1)]
+        self.ihac.fit(points_1)
+        self.ihac.fit(points_2)
+        self.ihac.fit(points_3)
+        clusters, labels = self.ihac.clusters(distance_threshold=0.5)
+
+        # Expect that the labels preserve the input order.
+        num_1 = len(points_1)
+        labels_1 = labels[:num_1]
+
+        num_2 = len(points_2)
+        labels_2 = labels[num_1:num_1+num_2]
+
+        labels_3 = labels[num_1+num_2:]
+
+        # labels_1 and labels_3 are operating off the same data (points) so they should be equivalent.
+        self.assertEqual(labels_1, labels_3)
+        self.assertNotEqual(labels_1, labels_2)
+
+    def test_no_cluster_nodes_with_single_cluster_child(self):
+        points = [0.30, 0.40, 0.80, 2.70, 0.20, 2.40]
+        points = [np.array([p]) for p in points]
+        points_1, points_2 = points[:4], points[4:]
+
+        self.ihac.fit(points_1)
+        bad_nodes = [n for n in self.ihac.hierarchy.nodes if type(n) is ClusterNode and len(n.children) <= 1]
+        self.assertFalse(bad_nodes)
+
+        self.ihac.fit(points_2)
+        bad_nodes = [n for n in self.ihac.hierarchy.nodes if type(n) is ClusterNode and len(n.children) <= 1]
+        self.assertFalse(bad_nodes)
+
+
 
 class HierarchyTest(unittest.TestCase):
     def setUp(self):
@@ -190,6 +233,7 @@ class HierarchyTest(unittest.TestCase):
 
         clusters = self.h.fcluster(distance_threshold=0.0)
         self.assertEqual(clusters, [[self.initial_leaf], [node_i], [node_j]])
+
 
 
 class ClusterNodeTest(unittest.TestCase):

@@ -24,3 +24,14 @@ of work (these instructions are for OSX 10.9):
 
     # pygraphviz with basic py3 support
     pip install git+git://github.com/ftzeng/pygraphviz.git
+
+For Ubuntu:
+
+    sudo apt-get install graphviz libgraphviz-dev
+    sudo apt-get build-dep python-matplotlib
+    pip install matplotlib
+    sudo apt-get install cmake qt-sdk
+    pip install -U pyside
+
+    # pygraphviz with basic py3 support
+    pip install git+git://github.com/ftzeng/pygraphviz.git
