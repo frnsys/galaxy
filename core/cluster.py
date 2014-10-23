@@ -7,7 +7,7 @@ from scipy.cluster.hierarchy import linkage, fcluster
 import numpy as np
 from sklearn.metrics.pairwise import pairwise_distances
 
-from .ihac.hierarchy import IHACHierarchy
+from .ihac.hierarchy import Hierarchy
 
 def hac(vecs, metric, linkage_method, threshold):
     """
@@ -83,21 +83,3 @@ def ihac(vecs, metric, previous_data_file=None):
     # labels = fcluster(linkage_matrix, threshold, criterion='distance')
 
     return labels
-
-
-
-def load_state_from_file(previous_data_file):
-    pass
-
-
-def extend_distance_matrix(old_distance_matrix, old_vecs, vecs):
-    """
-        Extends the distance matrix for a set of given vectors
-        to include new ones
-    """
-    # TODO: implement extending
-    vecs = np.append(oldvecs, vecs)    
-    return pdist(vecs, metric=metric)
-
-def fcluster_from_hierarchy(hierarchy, threshold):
-    pass
