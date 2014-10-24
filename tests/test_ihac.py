@@ -49,7 +49,21 @@ class IHACTest(unittest.TestCase):
         bad_nodes = [n for n in self.ihac.hierarchy.nodes if type(n) is ClusterNode and len(n.children) <= 1]
         self.assertFalse(bad_nodes)
 
+    def test_load_and_save(self):
+        tmp_path = '/tmp/test_hierarchy.pickle'
+        points = [0.30, 0.40, 0.80, 2.70, 0.20, 2.40]
+        points = [np.array([p]) for p in points]
 
+        self.ihac.fit(points)
+        self.ihac.save(tmp_path)
+
+        ihac = IHAC()
+        ihac.load(tmp_path)
+
+        _, labels_1 = self.ihac.clusters()
+        _, labels_2 = ihac.clusters()
+
+        self.assertEqual(labels_1, labels_2)
 
 class HierarchyTest(unittest.TestCase):
     def setUp(self):
