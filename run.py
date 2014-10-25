@@ -20,7 +20,13 @@ if cmd == 'train':
 
 # Test the clustering on a dataset that has labels.
 elif cmd == 'evaluate':
-    evaluate(datapath)
+
+    try:
+        approach = sys.argv[3]
+    except IndexError:
+        approach = 'hac'
+
+    evaluate(datapath, approach=approach)
 
 
 # Test the clustering on a dataset that doesn't have labels.

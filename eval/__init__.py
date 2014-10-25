@@ -8,7 +8,7 @@ import numpy as np
 from sklearn import metrics
 from sklearn.grid_search import ParameterGrid
 
-from core.cluster import hac
+from core.cluster import hac, ihac
 from core.util import labels_to_lists
 from eval.util import progress
 from eval.report import build_report
@@ -19,7 +19,12 @@ METRICS = ['adjusted_rand', 'adjusted_mutual_info', 'completeness', 'homogeneity
 
 Member = namedtuple('Member', ['id', 'title'])
 
-def evaluate(datapath):
+approaches = {
+    'hac': hac,
+    'ihac': ihac
+}
+
+def evaluate(datapath, approach='hac'):
     articles, labels_true = load_articles(datapath)
 
     # Build the vectors if they do not exist.
@@ -28,13 +33,23 @@ def evaluate(datapath):
         build_vectors(articles, vecs_path)
 
 
+    # More exhaustive param grid.
     param_grid = ParameterGrid({
         'metric': ['cosine'],
         'linkage_method': ['average'],
         'threshold': np.arange(0.1, 1.0, 0.05),
-        'weights': list( permutations(np.arange(1., 100., 20.), 3) )
+        'weights': list( permutations(np.arange(1., 102., 20.), 3) )
     })
 
+    # Param grid focused on values which seem to work best.
+    #param_grid = ParameterGrid({
+        #'metric': ['cosine'],
+        #'linkage_method': ['average'],
+        #'threshold': np.arange(0.1, 0.25, 0.05),
+        #'weights': list( permutations(np.arange(21., 82., 20.), 3) )
+    #})
+
+    # Param grid for development, just one param combo so things run quickly.
     #param_grid = ParameterGrid({
         #'metric': ['cosine'],
         #'linkage_method': ['average'],
@@ -53,7 +68,7 @@ def evaluate(datapath):
 
     results = []
     for pg in progress(param_grid, 'Running {0} parameter combos...'.format(len(param_grid))):
-        result = cluster(vecs_path, pg)
+        result = cluster(vecs_path, pg, approach)
         results.append(result)
 
     elapsed_time = time.time() - start_time
@@ -66,7 +81,7 @@ def evaluate(datapath):
 
     now = datetime.now()
     dataname = datapath.split('/')[-1].split('.')[0]
-    filename = '{0}_{1}'.format(dataname, now.isoformat())
+    filename = '{0}_{1}_{2}'.format(approach, dataname, now.isoformat())
 
     # Simple text report.
     build_report(filename, '\n'.join(lines))
@@ -103,7 +118,7 @@ def cluster_p(vectors, pg_set):
     return [cluster(vectors, pg) for pg in pg_set]
 
 
-def cluster(filepath, pg):
+def cluster(filepath, pg, approach):
     pg_ = pg.copy()
 
     # Reload the original vectors, so when we weigh them we can just
@@ -114,7 +129,11 @@ def cluster(filepath, pg):
     vecs = weight_vectors(vecs, weights=pg_['weights'])
 
     pg_.pop('weights', None)
-    labels_pred = hac(vecs, **pg_)
+
+    try:
+        labels_pred = approaches[approach](vecs, **pg_)
+    except KeyError:
+        print('Unrecognized approach "{0}"'.format(approach))
 
     if hasattr(pg['metric'], '__call__'): pg['metric'] = pg['metric'].__name__
     return {

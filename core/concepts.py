@@ -44,7 +44,7 @@ def tokenize(doc):
     """
     return doc.split('||')
 
-def train(docs, n_components=100):
+def train(docs, n_components=500):
     """
     Trains and serializes (pickles) a vectorizing pipeline
     based on training data.
