@@ -104,14 +104,13 @@ class Hierarchy():
         2. Maintain the homogeneity of crntNode.
         """
         while n_h:
-            n_hp = n_h.parent
             if not n_h.is_root:
                 misplaced = [s for s in n_h.siblings if not s.forms_lower_dense_region(n_h)]
                 for n in misplaced:
                     self.demote(n_h, n)
 
             self.repair_homogeneity(n_h)
-            n_h = n_hp
+            n_h = n_h.parent
 
     def repair_homogeneity(self, n):
         """
@@ -178,6 +177,11 @@ class Hierarchy():
         if self.available_ids:
             id = self.available_ids.pop()
 
+            # Now that we are using the distance row and col for this id,
+            # reset to 0 (instead of inf).
+            self.dists[id] = 0
+            self.dists[:,id] = 0
+
         # Otherwise we need to expand the distance matrix and use a new id.
         else:
             id = self.dists.shape[0]
@@ -240,6 +244,7 @@ class Hierarchy():
 
         # Symmetrize the distance matrix, based off the upper triangle.
         self.dists = mirror_upper(self.dists)
+
         np.fill_diagonal(self.dists, 0)
 
     def distance(self, n_i, n_j):
@@ -283,6 +288,29 @@ class Hierarchy():
             n_k = self.create_node(ClusterNode, children=[n_i, n_j])
             self.root = n_k
 
+
+    def fix_node(self, n):
+        """
+        This replaces a ClusterNode with its child if that child is an only child.
+        """
+        if len(n.children) == 1:
+            n_c = n.children[0]
+
+            if not n.is_root:
+                n_p = n.parent
+                n_p.remove_child(n)
+                n_p.add_child(n_c)
+
+            else:
+                assert(type(n_c) is ClusterNode)
+                n_c.parent = None
+                self.root = n_c
+
+            # Clear out n's children so they aren't also deleted.
+            n.children = []
+
+            self.delete_node(n)
+
     def demote(self, n_i, n_j):
         """
         Demote n_j to a child of n_i.
@@ -292,6 +320,10 @@ class Hierarchy():
         n_p = n_i.parent
         n_p.remove_child(n_j)
         n_i.add_child(n_j)
+
+        # It's possible that n_p now only has one child, 
+        # in which case it must be replaced with its only child.
+        self.fix_node(n_p)
 
     def merge(self, n_i, n_j):
         """

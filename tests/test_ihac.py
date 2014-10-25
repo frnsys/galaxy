@@ -65,6 +65,23 @@ class IHACTest(unittest.TestCase):
 
         self.assertEqual(labels_1, labels_2)
 
+    def test_many_points(self):
+        """
+        Test clustering with 160 points.
+        This should just execute without error.
+        """
+        cluster_a1 = np.arange(0,0.4,0.01)
+        cluster_a2 = np.arange(0.6,1,0.01)
+        cluster_b1 = np.arange(2,2.4,0.01)
+        cluster_b2 = np.arange(2.6,3,0.01)
+        points = np.append(cluster_a1, cluster_a2)
+        points = np.append(points, cluster_b1)
+        points = np.append(points, cluster_b2)
+        np.random.shuffle(points)
+        points = [np.array([p]) for p in points]
+
+        self.ihac.fit(points)
+
 class HierarchyTest(unittest.TestCase):
     def setUp(self):
         self.initial_vec = [10]
@@ -179,12 +196,33 @@ class HierarchyTest(unittest.TestCase):
         self.assertEqual(dist, 1)
 
     def test_demote(self):
+        # Build three sibling cluster nodes.
+        n_i = self._build_cluster_node()
+        n_j = self._build_cluster_node()
+        n_k = self._build_cluster_node()
+        parent = self.h.create_node(ClusterNode, children=[n_i, n_j, n_k])
+
+        self.h.demote(n_i, n_j)
+        self.assertEqual(n_j.parent, n_i)
+
+    def test_demote_omits_clusters_with_only_childs(self):
+        # If demoting causes a ClusterNode to have only one child, that node
+        # should be removed and replaced by its only child node.
+
         # Build two sibling cluster nodes.
         n_i = self._build_cluster_node()
         n_j = self._build_cluster_node()
         parent = self.h.create_node(ClusterNode, children=[n_i, n_j])
 
         self.h.demote(n_i, n_j)
+
+        # The parent should be removed.
+        self.assertEqual(parent.id, None)
+
+        # n_i should be the root now.
+        self.assertEqual(n_i.parent, None)
+
+        self.assertTrue(n_j in n_i.children)
         self.assertEqual(n_j.parent, n_i)
 
     def test_merge(self):
