@@ -7,7 +7,7 @@ def tokenize(sentence):
     terms = sentence.strip().split(" ")
     return terms
 
-class DocumentIndexGraph(nx.Graph):
+class DocumentIndexGraph(nx.DiGraph):
     """
     Document Index Graph structure
     as defined on the paper
@@ -18,10 +18,14 @@ class DocumentIndexGraph(nx.Graph):
         super(DocumentIndexGraph, self).__init__()
         self.document_tables = {}
         self.next_doc_id = 1
+        self.matching_phrases = {}
 
 
     def index_document(self, plain_text):
         doc_id = self.next_doc_id
+        for prev_id in range(1, doc_id):
+            self.matching_phrases[(prev_id, doc_id)] = []
+
         # split in sentences
         sentences = sentencize(plain_text)
         # tokenize sentences
@@ -35,18 +39,64 @@ class DocumentIndexGraph(nx.Graph):
 
         self.next_doc_id += 1
 
-
     def add_edge(self, doc_id, sentence_number, position_in_sentence, term1, term2):
         edge = (term1, term2)
         super(DocumentIndexGraph, self).add_edge(*edge)
         self.document_tables.setdefault(term1, {})
         doc_table = self.document_tables[term1]
 
+        # retrieve list of docs sharing this edge
+        matching_doc_ids = [d_id for d_id in doc_table.keys() if edge in doc_table[d_id]]
+        for d_id in matching_doc_ids:
+            self.extend_phrase_matches(doc_id, d_id, edge)
+
+        # update document table with current doc
         doc_table.setdefault(doc_id, {})
         edge_table = doc_table[doc_id]
 
         edge_table.setdefault(edge, {})
         edge_table[edge][sentence_number] = position_in_sentence
+
+    def extend_phrase_matches(self, new_doc, old_doc, edge):
+        term1, term2 = *edge
+        # TODO: complete
+
+
+    def get_matching_phrases(self, doc_a_id, doc_b_id):
+        doc_a_id, doc_b_id = sorted((doc_a_id, doc_b_id))
+        return self.matching_phrases[(doc_a_id, doc_b_id)]
+
+
+class PhraseMatch(object):
+    """docstring for PhraseMatch"""
+    def __init__(self, term1, term2,
+        doc_a_id, doc_b_id, sent_n_a, sent_n_b, pos_a, pos_b):
+        """
+            doc_a_id, doc_b_id: ids of documents where the matching occurs
+            sent_n_a, sent_n_b: respective sentence numbers where mathcing
+                              occurs in the docs
+            pos_a, pos_b: terms positions within the sentences where
+                        the matching begins
+            term1, term2: initial matching terms
+        """
+        self.phrase = [term1, term2]
+        self.matching_info = {
+            doc_a_id: {
+                'sent_n': sent_n_a,
+                'pos': pos_a
+            },
+            doc_b_id: {
+                'sent_n': sent_n_b,
+                'pos': pos_b
+            }
+        }
+
+    def extend(self, term):
+        self.phrase.append(term)
+
+
+        
+
 
 if __name__ == '__main__':
     docs = ["river rafting. mild river rafting. river rafting trips",
