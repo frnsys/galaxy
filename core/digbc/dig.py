@@ -34,21 +34,34 @@ class DocumentIndexGraph(nx.DiGraph):
         for n, sent in enumerate(sentences):
             previous_term = sent[0]
             for p, current_term in enumerate(sent[1:]):
-                self.add_edge(doc_id, n + 1, p + 1, previous_term, current_term)
+                position = (n + 1, p + 1)
+                self.add_edge(doc_id, position, previous_term, current_term)
                 previous_term = current_term
 
         self.next_doc_id += 1
 
-    def add_edge(self, doc_id, sentence_number, position_in_sentence, term1, term2):
+    def add_edge(self, doc_id, position, term1, term2):
+        # position is a tuple (sent_n, term_n) indicating
+        # the sentence number and term number where the occurence was found
         edge = (term1, term2)
         super(DocumentIndexGraph, self).add_edge(*edge)
         self.document_tables.setdefault(term1, {})
         doc_table = self.document_tables[term1]
 
         # retrieve list of docs sharing this edge
+        # and update phrase matches
         matching_doc_ids = [d_id for d_id in doc_table.keys() if edge in doc_table[d_id]]
         for d_id in matching_doc_ids:
-            self.extend_phrase_matches(doc_id, d_id, edge)
+            d_edge_table = doc_table[d_id]
+            d_edge_table[edge]
+
+            # search for previous matches ending on term1 and extend them
+            for pmatch in self.get_matching_phrases(d_id, doc_id):
+                if pmatch.phrase[-1] == term1 and pmatch.end_position(doc_id) == position:
+                    pmatch.phrase.append(term2)
+
+            # search for possible new matching phrases and create them
+
 
         # update document table with current doc
         doc_table.setdefault(doc_id, {})
@@ -57,9 +70,8 @@ class DocumentIndexGraph(nx.DiGraph):
         edge_table.setdefault(edge, {})
         edge_table[edge][sentence_number] = position_in_sentence
 
-    def extend_phrase_matches(self, new_doc, old_doc, edge):
-        term1, term2 = *edge
-        # TODO: complete
+
+
 
 
     def get_matching_phrases(self, doc_a_id, doc_b_id):
@@ -69,33 +81,25 @@ class DocumentIndexGraph(nx.DiGraph):
 
 class PhraseMatch(object):
     """docstring for PhraseMatch"""
-    def __init__(self, term1, term2,
-        doc_a_id, doc_b_id, sent_n_a, sent_n_b, pos_a, pos_b):
+    def __init__(self, term1, term2, doc_a_id, doc_b_id, pos_a, pos_b):
         """
             doc_a_id, doc_b_id: ids of documents where the matching occurs
-            sent_n_a, sent_n_b: respective sentence numbers where mathcing
-                              occurs in the docs
-            pos_a, pos_b: terms positions within the sentences where
-                        the matching begins
+            pos_a, pos_b: tuples of the form (sent_n, term_n) that contain
+                the respective starting positions of matching phrase within
+                doc_a and doc_b
             term1, term2: initial matching terms
         """
         self.phrase = [term1, term2]
-        self.matching_info = {
-            doc_a_id: {
-                'sent_n': sent_n_a,
-                'pos': pos_a
-            },
-            doc_b_id: {
-                'sent_n': sent_n_b,
-                'pos': pos_b
-            }
+        self.positions = {
+            doc_a_id: pos_a,
+            doc_b_id: pos_b
         }
 
     def extend(self, term):
         self.phrase.append(term)
 
-
-        
+    def end_position(doc_id):
+        return self.positions[doc_id] + (0, len(self.phrase) - 1)
 
 
 if __name__ == '__main__':
