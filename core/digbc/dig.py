@@ -1,4 +1,5 @@
 import networkx as nx
+from copy import copy
 
 def sentencize(plain_text):
     return plain_text.split(".")
@@ -23,8 +24,6 @@ class DocumentIndexGraph(nx.DiGraph):
 
     def index_document(self, plain_text):
         doc_id = self.next_doc_id
-        for prev_id in range(1, doc_id):
-            self.matching_phrases[(prev_id, doc_id)] = []
 
         # split in sentences
         sentences = sentencize(plain_text)
@@ -53,30 +52,40 @@ class DocumentIndexGraph(nx.DiGraph):
         matching_doc_ids = [d_id for d_id in doc_table.keys() if edge in doc_table[d_id]]
         for d_id in matching_doc_ids:
             d_edge_table = doc_table[d_id]
-            d_edge_table[edge]
+            # occurences of current edge in doc d
+            d_edge_positions = copy(d_edge_table[edge])
 
             # search for previous matches ending on term1 and extend them
             for pmatch in self.get_matching_phrases(d_id, doc_id):
                 if pmatch.phrase[-1] == term1 and pmatch.end_position(doc_id) == position:
+                    # remove this edge position from list
+                    d_pos = pmatch.end_position(d_id)
+                    d_edge_positions.remove(d_pos)
+                    # extend mathing phrase
                     pmatch.phrase.append(term2)
 
-            # search for possible new matching phrases and create them
+            # all the remaining edge positions belong to new matching phrases
+            for d_pos in d_edge_positions:
+                # import ipdb; ipdb.set_trace()
+                new_pmatch = PhraseMatch(term1, term2, doc_id, d_id, position, d_pos)
+                self.get_matching_phrases(d_id, doc_id).append(new_pmatch)
 
-
-        # update document table with current doc
+        # update document table for term1 with current doc
         doc_table.setdefault(doc_id, {})
         edge_table = doc_table[doc_id]
 
-        edge_table.setdefault(edge, {})
-        edge_table[edge][sentence_number] = position_in_sentence
-
-
-
+        edge_table.setdefault(edge, [])
+        edge_table[edge].append(position)
 
 
     def get_matching_phrases(self, doc_a_id, doc_b_id):
-        doc_a_id, doc_b_id = sorted((doc_a_id, doc_b_id))
-        return self.matching_phrases[(doc_a_id, doc_b_id)]
+        ordered_ids = tuple(sorted((doc_a_id, doc_b_id)))
+        self.matching_phrases.setdefault(ordered_ids, [])
+
+        return self.matching_phrases[ordered_ids]
+
+
+
 
 
 class PhraseMatch(object):
@@ -113,10 +122,12 @@ if __name__ == '__main__':
 
     import ipdb; ipdb.set_trace()
 
-    # TODO: turn the following session into a test
+    # TODO: turn the following sessions into unit tests
     # (this is the example from the figure 3 in the paper,
     #  we use 1-based indices for docs, sentences, etc. to make
     #  make it easier to match results with the paper)
+
+    # test_document_index_graph_structure():
 
     # ipdb> dig.nodes()
     # ['river', 'vacation', 'booking', 'rafting', 'fishing', 'trips', 'plan', 'fishin', 'adventures', 'wild', 'mild']
@@ -131,3 +142,15 @@ if __name__ == '__main__':
     # {('river', 'rafting'): {2: 1}, ('river', 'adventures'): {1: 2}}
     # ipdb> doc_table[3]
     # {('river', 'fishing'): {4: 1}}
+
+    # test_matching_phrases_number()
+
+    # ipdb> len(dig.get_matching_phrases(2,3))
+    # 1
+    # ipdb> len(dig.get_matching_phrases(1,2))
+    # 3
+    # ipdb> len(dig.get_matching_phrases(1,3))
+    # 0
+
+    # test_multiple_phrase_matches()
+    # 
