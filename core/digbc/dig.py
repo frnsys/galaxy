@@ -58,6 +58,7 @@ class DocumentIndexGraph(nx.DiGraph):
         self.document_tables = {}
         self.indexed_docs = []
         self.matching_phrases = {}
+        self.phrase_frequencies = {}
 
     def index_document(self, plain_text):
         doc_id = len(self.indexed_docs)
@@ -131,8 +132,16 @@ class DocumentIndexGraph(nx.DiGraph):
         return self.matching_phrases[ordered_ids]
 
     def get_phrase_freq(self, doc_id, phrase):
-        # TODO: implement this
-        return 1.0
+        phrase = tuple(phrase)
+        if not (doc_id, phrase) in self.phrase_frequencies:
+            count = 0
+            for rsentence in self.get_doc(doc_id).sentences:
+                sentence = rsentence.sentence
+                for i in range(len(sentence)):
+                    if sentence[i] == phrase[0] and tuple(sentence[i: i + len(phrase)]) == phrase:
+                        count += 1
+            self.phrase_frequencies[(doc_id, phrase)] = count
+        return self.phrase_frequencies[(doc_id, phrase)]
 
     def get_p_similarity(self, doc_a_id, doc_b_id):
         doc_a = self.get_doc(doc_a_id)
