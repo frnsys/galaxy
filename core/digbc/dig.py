@@ -7,6 +7,12 @@ HIGH = 0
 MED = 1
 LOW = 2
 
+WEIGHTS = {
+    HIGH: 2.0,
+    MED: 1.5,
+    LOW: 1.0
+}
+
 def sentencize(plain_text):
     sentences = plain_text.split(".")
     sentences = [tokenize(s) for s in sentences]
@@ -15,6 +21,30 @@ def sentencize(plain_text):
 def tokenize(sentence):
     terms = sentence.strip().split(" ")
     return terms
+
+
+class Document(object):
+    """docstring for Document"""
+    def __init__(self, id, plain_text):
+        # parse ranked tokenized sentences
+        self.id = id
+        self.sentences = sentencize(plain_text)
+        self.wlength = None # calculate only if needed
+
+    def get_weight(self, sent_n):
+        return WEIGHTS[self.sentences[sent_n].level]
+
+    def get_length(self, sent_n):
+        return len(self.sentences[sent_n].sentence)
+
+    def weighted_length(self):
+        if not self.wlength:
+            wlengths = [self.get_weight(i) * self.get_length(i) for i in range(len(self.sentences))]
+            self.wlength = sum(wlengths)
+
+        return self.wlength
+
+
 
 class DocumentIndexGraph(nx.DiGraph):
     """
@@ -26,21 +56,19 @@ class DocumentIndexGraph(nx.DiGraph):
     def __init__(self):
         super(DocumentIndexGraph, self).__init__()
         self.document_tables = {}
-        self.next_doc_id = 1
+        self.indexed_docs = []
         self.matching_phrases = {}
 
-
     def index_document(self, plain_text):
-        doc_id = self.next_doc_id
+        doc_id = len(self.indexed_docs)
+        document = Document(doc_id, plain_text)
+        self.indexed_docs.append(document)
 
-        # parse ranked tokenized sentences
-        sentences = sentencize(plain_text)
-
-        for n, rsent in enumerate(sentences):
+        for n, rsent in enumerate(document.sentences):
             sent, level = rsent.sentence, rsent.level
             previous_term = sent[0]
             for p, current_term in enumerate(sent[1:]):
-                position = (n + 1, p + 1)
+                position = (n, p)
                 self.add_edge(doc_id, position, previous_term, current_term, level)
                 previous_term = current_term
             # update term freq for last term (add edge only updates for startig term of
@@ -49,7 +77,8 @@ class DocumentIndexGraph(nx.DiGraph):
             doc_table.setdefault(doc_id, DocumentTableEntry())
             doc_table[doc_id].term_freqs[level] += 1
 
-        self.next_doc_id += 1
+    def get_doc(self, doc_id):
+        return self.indexed_docs[doc_id]
 
     def add_edge(self, doc_id, position, term1, term2, level):
         # position is a tuple (sent_n, term_n) indicating
@@ -77,8 +106,9 @@ class DocumentIndexGraph(nx.DiGraph):
 
             # all the remaining edge positions belong to new matching phrases
             for d_pos in d_edge_positions:
-                # import ipdb; ipdb.set_trace()
-                new_pmatch = PhraseMatch(term1, term2, doc_id, d_id, position, d_pos)
+                doc = self.indexed_docs[doc_id]
+                d = self.indexed_docs[d_id]
+                new_pmatch = PhraseMatch(term1, term2, doc, d, position, d_pos)
                 self.get_matching_phrases(d_id, doc_id).append(new_pmatch)
 
         # update document table for term1 with current doc
@@ -90,6 +120,9 @@ class DocumentIndexGraph(nx.DiGraph):
 
         doc_table[doc_id].term_freqs[level] += 1
 
+    def get_doc_table(self, term):
+        self.document_tables.setdefault(term, {})
+        return self.document_tables[term]
 
     def get_matching_phrases(self, doc_a_id, doc_b_id):
         ordered_ids = tuple(sorted((doc_a_id, doc_b_id)))
@@ -97,9 +130,28 @@ class DocumentIndexGraph(nx.DiGraph):
 
         return self.matching_phrases[ordered_ids]
 
-    def get_doc_table(self, term):
-        self.document_tables.setdefault(term, {})
-        return self.document_tables[term]
+    def get_phrase_freq(self, doc_id, phrase):
+        # TODO: implement this
+        return 1.0
+
+    def get_p_similarity(self, doc_a_id, doc_b_id):
+        doc_a = self.get_doc(doc_a_id)
+        doc_b = self.get_doc(doc_b_id)
+
+        numerator = 0.0
+        pmatches = self.get_matching_phrases(doc_a.id, doc_b.id)
+        for pmatch in pmatches:
+            phrase = pmatch.phrase
+            f_a = self.get_phrase_freq(doc_a.id, phrase) 
+            f_b = self.get_phrase_freq(doc_b.id, phrase)
+            sent_n_a = pmatch.positions[doc_a_id][0]
+            sent_n_b = pmatch.positions[doc_b_id][0]
+            w_a = doc_a.get_weight(sent_n_a)
+            w_b = doc_b.get_weight(sent_n_b)
+            numerator += (pmatch.g() * (f_a * w_a + f_b * w_b)) ** 2
+
+        return (numerator ** 0.5) / (doc_a.weighted_length() + doc_b.weighted_length())
+
 
 
 
@@ -121,7 +173,7 @@ class RankedSentence(object):
 
 class PhraseMatch(object):
     """docstring for PhraseMatch"""
-    def __init__(self, term1, term2, doc_a_id, doc_b_id, pos_a, pos_b):
+    def __init__(self, term1, term2, doc_a, doc_b, pos_a, pos_b):
         """
             doc_a_id, doc_b_id: ids of documents where the matching occurs
             pos_a, pos_b: tuples of the form (sent_n, term_n) that contain
@@ -130,9 +182,11 @@ class PhraseMatch(object):
             term1, term2: initial matching terms
         """
         self.phrase = [term1, term2]
+        self.doc_a = doc_a
+        self.doc_b = doc_b
         self.positions = {
-            doc_a_id: pos_a,
-            doc_b_id: pos_b
+            doc_a.id: pos_a,
+            doc_b.id: pos_b
         }
 
     def extend(self, term):
@@ -140,6 +194,16 @@ class PhraseMatch(object):
 
     def end_position(doc_id):
         return self.positions[doc_id] + (0, len(self.phrase) - 1)
+
+    def g(self):
+        gamma = 1.2
+        l_i = len(self.phrase)
+        doc_a, doc_b = self.doc_a, self.doc_b
+        s_a = len(doc_a.sentences[self.positions[doc_a.id][0]].sentence)
+        s_b = len(doc_b.sentences[self.positions[doc_b.id][0]].sentence)
+        return (2.0 * l_i / (s_a + s_b)) ** gamma
+
+
 
 
 if __name__ == '__main__':
@@ -151,7 +215,7 @@ if __name__ == '__main__':
     for doc in docs:
         dig.index_document(doc)
 
-    import ipdb; ipdb.set_trace()
+    print([dig.get_p_similarity(a, b) for (a, b) in [(0, 1), (1, 2), (0, 2)]])
 
     # TODO: turn the following sessions into unit tests
     # (this is the example from the figure 3 in the paper,
