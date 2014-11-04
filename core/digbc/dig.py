@@ -1,6 +1,18 @@
 import networkx as nx
 import numpy as np
 from copy import copy
+import string
+
+from nltk.tokenize import sent_tokenize, word_tokenize
+from nltk.corpus import stopwords
+from nltk.stem.wordnet import WordNetLemmatizer
+
+from core.vectorize import vectorize
+from scipy.spatial.distance import cosine
+
+LEMMATIZER = WordNetLemmatizer()
+
+STOPWORDS = set(list(string.punctuation) + stopwords.words('english'))
 
 # Level Definitions
 HIGH = 0
@@ -14,13 +26,19 @@ WEIGHTS = {
 }
 
 def sentencize(plain_text):
-    sentences = plain_text.split(".")
+    sentences = sent_tokenize(plain_text)
     sentences = [tokenize(s) for s in sentences]
     return [RankedSentence(sentence=s, level=LOW) for s in sentences]
 
+
 def tokenize(sentence):
-    terms = sentence.strip().split(" ")
-    return terms
+    tokens = []
+    for token in word_tokenize(sentence):
+        if token in STOPWORDS:
+            continue
+        lemma = LEMMATIZER.lemmatize(token.lower())
+        tokens.append(lemma)
+    return tokens
 
 
 class Document(object):
@@ -30,6 +48,7 @@ class Document(object):
         self.id = id
         self.sentences = sentencize(plain_text)
         self.wlength = None # calculate only if needed
+        self.tfidf = vectorize(plain_text)
 
     def get_weight(self, sent_n):
         return WEIGHTS[self.sentences[sent_n].level]
@@ -143,24 +162,33 @@ class DocumentIndexGraph(nx.DiGraph):
             self.phrase_frequencies[(doc_id, phrase)] = count
         return self.phrase_frequencies[(doc_id, phrase)]
 
-    def get_p_similarity(self, doc_a_id, doc_b_id):
-        doc_a = self.get_doc(doc_a_id)
-        doc_b = self.get_doc(doc_b_id)
-
+    def get_sim_p(self, doc_a, doc_b):
         numerator = 0.0
         pmatches = self.get_matching_phrases(doc_a.id, doc_b.id)
         for pmatch in pmatches:
             phrase = pmatch.phrase
             f_a = self.get_phrase_freq(doc_a.id, phrase) 
             f_b = self.get_phrase_freq(doc_b.id, phrase)
-            sent_n_a = pmatch.positions[doc_a_id][0]
-            sent_n_b = pmatch.positions[doc_b_id][0]
+            sent_n_a = pmatch.positions[doc_a.id][0]
+            sent_n_b = pmatch.positions[doc_b.id][0]
             w_a = doc_a.get_weight(sent_n_a)
             w_b = doc_b.get_weight(sent_n_b)
             numerator += (pmatch.g() * (f_a * w_a + f_b * w_b)) ** 2
 
         return (numerator ** 0.5) / (doc_a.weighted_length() + doc_b.weighted_length())
 
+    def get_sim_t(self, doc_a, doc_b):
+        return cosine(doc_a.tfidf, doc_b.tfidf)
+
+    def get_blended_similarity(self, doc_a_id, doc_b_id, alpha=0.7):
+        doc_a = self.get_doc(doc_a_id)
+        doc_b = self.get_doc(doc_b_id)        
+        sim_p = self.get_sim_p(doc_a, doc_b)
+        sim_t = self.get_sim_t(doc_a, doc_b)
+
+        return alpha * sim_p + (1 - alpha) * sim_t
+
+        
 
 
 
@@ -170,7 +198,6 @@ class DocumentTableEntry(object):
     def __init__(self):
         self.term_freqs = [0, 0, 0]
         self.edge_table = {}
-
 
 
 class RankedSentence(object):
@@ -224,37 +251,4 @@ if __name__ == '__main__':
     for doc in docs:
         dig.index_document(doc)
 
-    print([dig.get_p_similarity(a, b) for (a, b) in [(0, 1), (1, 2), (0, 2)]])
-
-    # TODO: turn the following sessions into unit tests
-    # (this is the example from the figure 3 in the paper,
-    #  we use 1-based indices for docs, sentences, etc. to make
-    #  make it easier to match results with the paper)
-
-    # test_document_index_graph_structure():
-
-    # ipdb> dig.nodes()
-    # ['river', 'vacation', 'booking', 'rafting', 'fishing', 'trips', 'plan', 'fishin', 'adventures', 'wild', 'mild']
-    # ipdb> dig.edges()
-    # [('river', 'adventures'), ('river', 'fishing'), ('river', 'rafting'), ('river', 'wild'), ('river', 'mild'), ('vacation', 'rafting'), ('vacation', 'fishing'), ('vacation', 'plan'), ('booking', 'fishing'), ('rafting', 'trips'), ('fishing', 'trips'), ('trips', 'fishin')]
-    # ipdb> dig.document_tables["river"]
-    # {1: {('river', 'rafting'): {1: 1, 2: 2, 3: 1}}, 2: {('river', 'rafting'): {2: 1}, ('river', 'adventures'): {1: 2}}, 3: {('river', 'fishing'): {4: 1}}}
-    # ipdb> doc_table = dig.document_tables["river"]
-    # ipdb> doc_table[1]
-    # {('river', 'rafting'): {1: 1, 2: 2, 3: 1}}
-    # ipdb> doc_table[2]
-    # {('river', 'rafting'): {2: 1}, ('river', 'adventures'): {1: 2}}
-    # ipdb> doc_table[3]
-    # {('river', 'fishing'): {4: 1}}
-
-    # test_matching_phrases_number()
-
-    # ipdb> len(dig.get_matching_phrases(2,3))
-    # 1
-    # ipdb> len(dig.get_matching_phrases(1,2))
-    # 3
-    # ipdb> len(dig.get_matching_phrases(1,3))
-    # 0
-
-    # test_multiple_phrase_matches()
-    # 
+    print([dig.get_blended_similarity(a, b) for (a, b) in [(0, 1), (1, 2), (0, 2)]])
