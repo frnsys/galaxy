@@ -18,3 +18,4 @@ VENV/*
 data/*
 *.png
 *.json
+conf.py
