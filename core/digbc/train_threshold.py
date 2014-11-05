@@ -6,8 +6,10 @@ import numpy as np
 
 docs, true_labels = load_articles('../../eval/data/event/handpicked.json')
 
-for threshold in np.arange(0.0001, 0.001, 0.00002):
-	dig = DocumentIndexGraphClusterer(threshold=0.001)
+# docs = docs[:10]
+
+for threshold in np.arange(0.0003, 0.001, 0.00005):
+	dig = DocumentIndexGraphClusterer(threshold=threshold)
 
 	for idx, doc in enumerate(docs):
 	    dig.index_document(doc.text)
@@ -17,9 +19,11 @@ for threshold in np.arange(0.0001, 0.001, 0.00002):
 	    for doc_id in clus.doc_ids:
 	        doc_clus_map[doc_id] = idx
 	labels = [doc_clus_map[id] for id in sorted(doc_clus_map)]
-	print("%.4f : %d" % (threshold, len(labels)))
-	if len(labels) == 23:
-		import ipdb; ipdb.set_trace()
+	nclusters = len(set(labels))
+	print("%.5f : %d" % (threshold, nclusters))
+	if nclusters == 24:
+		print("24 clusters for threshold = %.5f" % threshold)
+		break
 
 print(labels)
 print(true_labels)
