@@ -322,7 +322,7 @@ class PhraseMatch(object):
     def extend(self, term):
         self.phrase.append(term)
 
-    def end_position(doc_id):
+    def end_position(self, doc_id):
         return self.positions[doc_id] + (0, len(self.phrase) - 1)
 
     def g(self):
