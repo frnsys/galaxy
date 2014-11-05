@@ -74,7 +74,7 @@ class DocumentIndexGraphClusterer(nx.DiGraph):
 
     "Web Document Clustering Using Document Index Graph"
     """
-    def __init__(self):
+    def __init__(self, threshold=0.10):
         super(DocumentIndexGraphClusterer, self).__init__()
         self.document_tables = {}
         self.indexed_docs = []
@@ -84,6 +84,7 @@ class DocumentIndexGraphClusterer(nx.DiGraph):
         self.formed_clusters = []
         self.phrase_freqs = {} # counts total occurrences of phrases in cluster
         self.phrase_doc_freqs = {} # counts number of docs containing the phrase in cluster
+        self.threshold = threshold
 
 
     def index_document(self, plain_text):
@@ -259,12 +260,14 @@ class DocumentIndexGraphClusterer(nx.DiGraph):
         self.phrase_doc_freqs[cluster.id][tuple(phrase)] = phrase_doc_freq
 
 
-    def assign_cluster(self, document, threshold=0.25):
+    def assign_cluster(self, document):
         found_similar_clusters = False
 
         # calculate similarities and add to similar clusters
         for cluster in self.formed_clusters:
-            if self.get_cluster_sim(cluster, document) > threshold:
+            sim_to_cluster = self.get_cluster_sim(cluster, document)
+            # print("%.4f" % sim_to_cluster)
+            if sim_to_cluster > self.threshold:
                 found_similar_clusters = True
                 cluster.add_doc(document)
                 # update phrase_freqs and phrase_doc_freqs where needed
