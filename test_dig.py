@@ -1,7 +1,7 @@
 from eval.data import load_articles
 from core.digbc.dig import DocumentIndexGraphClusterer
 
-dig = DocumentIndexGraphClusterer()
+dig = DocumentIndexGraphClusterer(threshold=0.003)
 
 docs, true_labels = load_articles('eval/data/event/handpicked.json')
 
