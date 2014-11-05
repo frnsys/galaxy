@@ -9,6 +9,7 @@ from nltk.stem.wordnet import WordNetLemmatizer
 
 from core.vectorize import vectorize
 from scipy.spatial.distance import cosine
+from scipy import argmax
 
 LEMMATIZER = WordNetLemmatizer()
 
@@ -74,7 +75,7 @@ class DocumentIndexGraphClusterer(nx.DiGraph):
 
     "Web Document Clustering Using Document Index Graph"
     """
-    def __init__(self, threshold=0.10):
+    def __init__(self, threshold=0.10, hard=False):
         super(DocumentIndexGraphClusterer, self).__init__()
         self.document_tables = {}
         self.indexed_docs = []
@@ -85,6 +86,7 @@ class DocumentIndexGraphClusterer(nx.DiGraph):
         self.phrase_freqs = {} # counts total occurrences of phrases in cluster
         self.phrase_doc_freqs = {} # counts number of docs containing the phrase in cluster
         self.threshold = threshold
+        self.hard = hard
 
 
     def index_document(self, plain_text):
@@ -113,6 +115,9 @@ class DocumentIndexGraphClusterer(nx.DiGraph):
 
     def get_doc(self, doc_id):
         return self.indexed_docs[doc_id]
+
+    def get_cluster(self, cluster_id):
+        return self.formed_clusters[cluster_id]
 
     def add_edge(self, doc_id, position, term1, term2, level):
         # position is a tuple (sent_n, term_n) indicating
@@ -230,7 +235,6 @@ class DocumentIndexGraphClusterer(nx.DiGraph):
 
         return (numerator ** 0.5) / (cluster.get_normalization_weight() + doc.get_normalization_weight())
 
-
     def get_cluster_phrase_freq(self, cluster, phrase):
         if not tuple(phrase) in self.phrase_freqs[cluster.id]:
             self._init_cluster_phrase_freqs(cluster, phrase)
@@ -259,27 +263,27 @@ class DocumentIndexGraphClusterer(nx.DiGraph):
         self.phrase_freqs[cluster.id][tuple(phrase)] = phrase_freq
         self.phrase_doc_freqs[cluster.id][tuple(phrase)] = phrase_doc_freq
 
-
     def assign_cluster(self, document):
-        found_similar_clusters = False
+        good_clusters = []
+        best_similarities = []
 
         # calculate similarities and add to similar clusters
         for cluster in self.formed_clusters:
             sim_to_cluster = self.get_cluster_sim(cluster, document)
             # print("%.4f" % sim_to_cluster)
             if sim_to_cluster > self.threshold:
-                found_similar_clusters = True
-                cluster.add_doc(document)
-                # update phrase_freqs and phrase_doc_freqs where needed
-                for phrase in self.phrase_freqs[cluster.id]:
-                    dfreq = self.get_phrase_freq(document.id, phrase)
-                    if dfreq:
-                        self.phrase_freqs[cluster.id][phrase] += dfreq
-                        self.phrase_doc_freqs[cluster.id][phrase] += 1
+                good_clusters.append(cluster)
+                best_similarities.append(sim_to_cluster)
 
         # if no similar cluster found, create new
-        if not found_similar_clusters:
+        if not good_clusters:
             self.create_cluster(document)
+        else:
+            if self.hard:
+                max_i = argmax(best_similarities)
+                good_clusters = [good_clusters[max_i]]
+            for cluster in good_clusters:
+                self.add_doc_to_cluster(document, cluster)
 
     def create_cluster(self, first_doc):
         new_cluster_id = len(self.formed_clusters)
@@ -287,7 +291,14 @@ class DocumentIndexGraphClusterer(nx.DiGraph):
         self.phrase_freqs[new_cluster_id] = {}
         self.phrase_doc_freqs[new_cluster_id] = {}
 
-
+    def add_doc_to_cluster(self, document, cluster):
+        cluster.add_doc(document)
+        # update phrase_freqs and phrase_doc_freqs where needed
+        for phrase in self.phrase_freqs[cluster.id]:
+            dfreq = self.get_phrase_freq(document.id, phrase)
+            if dfreq:
+                self.phrase_freqs[cluster.id][phrase] += dfreq
+                self.phrase_doc_freqs[cluster.id][phrase] += 1
 
 
 class DocumentTableEntry(object):
@@ -363,5 +374,3 @@ if __name__ == '__main__':
 
     import ipdb; ipdb.set_trace()
     # print([dig.get_blended_similarity(a, b) for (a, b) in [(0, 1), (1, 2), (0, 2)]])
-
-
