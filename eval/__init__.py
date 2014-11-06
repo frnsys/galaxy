@@ -33,8 +33,8 @@ def evaluate(datapath, approach='hac', param_grid=None):
         build_vectors(articles, vecs_path)
 
 
-    # More exhaustive param grid.
     if param_grid is None:
+        # More exhaustive param grid.
         param_grid = ParameterGrid({
             'metric': ['cosine'],
             'linkage_method': ['average'],
@@ -58,6 +58,17 @@ def evaluate(datapath, approach='hac', param_grid=None):
             #'weights': [[1,1,1]]
         #})
 
+        if approach == 'ihac':
+            param_grid = ParameterGrid({
+                'metric': ['cosine'],
+                'linkage_method': ['average'],
+                'threshold': np.arange(40., 100., 10.),
+                'weights': list( permutations(np.arange(21., 102., 20.), 3) ),
+                'lower_limit_scale': np.arange(0.1, 1.1, 0.1),
+                'upper_limit_scale': np.arange(1.1, 1.2, 0.05)
+            })
+
+
     # Not working right now, need more memory. scipy's pdist stores an array in memory
     # which craps out parallelization cause there's not enough memory to go around.
     #print('Running {0} parameter combos...'.format(len(param_grid)))
@@ -69,8 +80,12 @@ def evaluate(datapath, approach='hac', param_grid=None):
 
     results = []
     for pg in progress(param_grid, 'Running {0} parameter combos...'.format(len(param_grid))):
-        result = cluster(vecs_path, pg, approach)
-        results.append(result)
+        try:
+            result = cluster(vecs_path, pg, approach)
+            results.append(result)
+        except ValueError as e:
+            print("error:")
+            print(e)
 
     elapsed_time = time.time() - start_time
     print('Clustered in {0}'.format(elapsed_time))
