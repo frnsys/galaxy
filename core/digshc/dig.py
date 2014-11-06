@@ -64,7 +64,6 @@ class Document(object):
         return self.wlength
 
 
-
 class DocumentIndexGraph(nx.DiGraph):
     """
     Document Index Graph structure
@@ -188,10 +187,6 @@ class DocumentIndexGraph(nx.DiGraph):
 
         return alpha * sim_p + (1 - alpha) * sim_t
 
-        
-
-
-
 
 class DocumentTableEntry(object):
     """docstring for DocumentTableEntry"""
@@ -238,8 +233,6 @@ class PhraseMatch(object):
         s_a = len(doc_a.sentences[self.positions[doc_a.id][0]].sentence)
         s_b = len(doc_b.sentences[self.positions[doc_b.id][0]].sentence)
         return (2.0 * l_i / (s_a + s_b)) ** gamma
-
-
 
 
 if __name__ == '__main__':

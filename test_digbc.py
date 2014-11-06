@@ -1,5 +1,5 @@
 from eval.data import load_articles
-from core.digbc.dig import DocumentIndexGraphClusterer
+from core.digbc.digbc import DocumentIndexGraphClusterer
 
 dig = DocumentIndexGraphClusterer(threshold=0.003)
 
