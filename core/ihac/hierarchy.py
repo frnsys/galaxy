@@ -45,7 +45,8 @@ class Hierarchy():
         self.root.nearest_dists_std  = 1.0
         # We set the std to be > 0 so that there's some space for non-identical nodes
         # to join this cluster. Otherwise, only identical nodes would be able to join.
-        # This value is kind of arbitrary...there's probably some way of determining a good starting value.
+        # This value is kind of arbitrary...there's probably some way of determining
+        # a good starting value.
 
     def incorporate(self, vec):
         """
@@ -64,7 +65,7 @@ class Hierarchy():
                 break
 
             # Otherwise, n forms a higher dense region with n_cp
-            # (i.e. if d < n_cp.lower_limit)...
+            # (i.e. if d > n_cp.lower_limit)...
             elif d <= n_cp.lower_limit:
                 # And if n forms a lower dense region with at least one of n_cp's children...
                 for ch in [ch for ch in n_cp.children if type(ch) is ClusterNode]:

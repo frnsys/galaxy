@@ -7,8 +7,12 @@ from scipy.cluster.hierarchy import linkage, fcluster
 import numpy as np
 from sklearn.metrics.pairwise import pairwise_distances
 
+<<<<<<< HEAD
 from .ihac import IHAC
 from .ihac.node import Node
+=======
+from .ihac.hierarchy import Hierarchy
+>>>>>>> digbc_clustering
 
 def hac(vecs, metric, linkage_method, threshold):
     """

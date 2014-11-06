@@ -1,9 +1,8 @@
 """
-    Implementation of Katz-CLASSIT
+    Classic COBWEB implementation
+    Taken from https://github.com/cmaclell/concept_formation
 
-    a variant of COBWEB algorithm adapted for clustering
-    of (vectorized) text articles, that uses
-    the Katz distribution to model word frequency distributions
+    Included here just for comparison with Katz-CLASSIT variant
 """
 import json
 import scipy
@@ -11,6 +10,7 @@ from random import choice
 from random import shuffle
 
 class CobwebTree:
+
     def __init__(self):
         """
         Initialize the tree with a CobwebNode
@@ -358,6 +358,7 @@ class CobwebTree:
             print("%0.2f" % (scipy.std(a)))
 
 class CobwebNode:
+
     counter = 0
 
     def __init__(self, otherTree=None):
@@ -382,8 +383,8 @@ class CobwebNode:
 
     def shallow_copy(self):
         """
-        Creates a copy of the current node and its children 
-        (but not their children)
+        Creates a copy of the current node and its children (but not their
+        children)
         """
         temp = self.__class__()
         temp.update_counts_from_node(self)

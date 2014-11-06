@@ -8,7 +8,7 @@ doc/_build
 doc/_static
 doc/_templates
 *.log
-config.py
+conf.py
 *.rdb
 .webassets-cache
 bower/
