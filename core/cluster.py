@@ -7,12 +7,19 @@ from scipy.cluster.hierarchy import linkage, fcluster
 import numpy as np
 from sklearn.metrics.pairwise import pairwise_distances
 
-<<<<<<< HEAD
 from .ihac import IHAC
 from .ihac.node import Node
-=======
-from .ihac.hierarchy import Hierarchy
->>>>>>> digbc_clustering
+
+from .digbc import DocumentIndexGraphClusterer
+
+"""
+Notes:
+- for the most part, these take vectors representing articles
+  and then some hyperparameters.
+- they all return labels which correspond to documents by their order of input.
+  e.g. labels[0] is for vecs[0] or docs[0].
+"""
+
 
 def hac(vecs, metric, linkage_method, threshold):
     """
@@ -64,4 +71,27 @@ def ihac(vecs, metric, linkage_method, threshold, lower_limit_scale, upper_limit
     model = IHAC()
     model.fit(vecs.toarray())
     clusters, labels = model.clusters(distance_threshold=threshold, with_labels=True)
+    return labels
+
+
+def digbc(docs, threshold):
+    # Worth nothing that this takes in plaintext documents, _not_ vectors.
+    dig = DocumentIndexGraphClusterer(threshold=threshold)
+
+    for doc in docs:
+        dig.index_document(doc)
+
+    doc_clus_map = {}
+    for idx, clus in enumerate(dig.formed_clusters):
+        for doc_id in clus.doc_ids:
+            doc_clus_map.setdefault(doc_id, [])
+            doc_clus_map[doc_id].append(idx)
+
+    labels = []
+    for id in sorted(doc_clus_map):
+        clusters = [dig.get_cluster(cl_id) for cl_id in doc_clus_map[id]]
+        sims = [dig.get_cluster_sim(cl, dig.get_doc(id)) for cl in clusters]
+        max_i = argmax(sims)
+        labels.append(clusters[max_i].id)
+
     return labels

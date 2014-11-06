@@ -1,9 +1,13 @@
 import sys
 import json
+from itertools import permutations
 
 from core.vectorize import train
 from core import concepts
 from eval import evaluate, test
+
+import numpy as np
+from sklearn.grid_search import ParameterGrid
 
 cmd = sys.argv[1]
 datapath = sys.argv[2]
@@ -32,3 +36,33 @@ elif cmd == 'evaluate':
 # Test the clustering on a dataset that doesn't have labels.
 elif cmd == 'test':
     test(datapath)
+
+
+# Compare different clustering algorithms on different param grids.
+elif cmd == 'compare':
+    approaches = {
+        'hac': ParameterGrid({
+            'metric': ['cosine'],
+            'linkage_method': ['average'],
+            'threshold': np.arange(0.1, 0.25, 0.05),
+            'weights': list( permutations(np.arange(21., 82., 20.), 3) )
+        }),
+        'ihac': ParameterGrid({
+            'metric': ['cosine'],
+            'linkage_method': ['average'],
+            'threshold': np.arange(40., 100., 10.),
+            'weights': list( permutations(np.arange(21., 102., 20.), 3) ),
+            'lower_limit_scale': np.arange(0.1, 1.1, 0.1),
+            'upper_limit_scale': np.arange(1.1, 1.2, 0.05)
+        }),
+        'digbc': ParameterGrid({
+            'threshold': np.arange(0.00295, 0.00330, 0.00005)
+        })
+    }
+
+
+    results = {}
+    for approach, param_grid in approaches.items():
+        results[approach] = evaluate(datapath, approach=approach, param_grid=param_grid)
+
+    print(results)

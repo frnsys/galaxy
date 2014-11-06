@@ -8,7 +8,7 @@ import numpy as np
 from sklearn import metrics
 from sklearn.grid_search import ParameterGrid
 
-from core.cluster import hac, ihac
+from core.cluster import hac, ihac, digbc
 from core.util import labels_to_lists
 from eval.util import progress
 from eval.report import build_report
@@ -21,7 +21,8 @@ Member = namedtuple('Member', ['id', 'title'])
 
 approaches = {
     'hac': hac,
-    'ihac': ihac
+    'ihac': ihac,
+    'digbc': digbc
 }
 
 def evaluate(datapath, approach='hac', param_grid=None):
@@ -112,6 +113,8 @@ def evaluate(datapath, approach='hac', param_grid=None):
         'dataset': datapath,
         'date': now
     }, template='eval_report.html')
+
+    return bests
 
 
 def calculate_bests(results):
