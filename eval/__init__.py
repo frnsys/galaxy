@@ -24,7 +24,7 @@ approaches = {
     'ihac': ihac
 }
 
-def evaluate(datapath, approach='hac'):
+def evaluate(datapath, approach='hac', param_grid=None):
     articles, labels_true = load_articles(datapath)
 
     # Build the vectors if they do not exist.
@@ -33,29 +33,41 @@ def evaluate(datapath, approach='hac'):
         build_vectors(articles, vecs_path)
 
 
-    # More exhaustive param grid.
-    param_grid = ParameterGrid({
-        'metric': ['cosine'],
-        'linkage_method': ['average'],
-        'threshold': np.arange(0.1, 1.0, 0.05),
-        'weights': list( permutations(np.arange(1., 102., 20.), 3) )
-    })
+    if param_grid is None:
+        # More exhaustive param grid.
+        param_grid = ParameterGrid({
+            'metric': ['cosine'],
+            'linkage_method': ['average'],
+            'threshold': np.arange(0.1, 1.0, 0.05),
+            'weights': list( permutations(np.arange(1., 102., 20.), 3) )
+        })
 
-    # Param grid focused on values which seem to work best.
-    #param_grid = ParameterGrid({
-        #'metric': ['cosine'],
-        #'linkage_method': ['average'],
-        #'threshold': np.arange(0.1, 0.25, 0.05),
-        #'weights': list( permutations(np.arange(21., 82., 20.), 3) )
-    #})
+        # Param grid focused on values which seem to work best.
+        #param_grid = ParameterGrid({
+            #'metric': ['cosine'],
+            #'linkage_method': ['average'],
+            #'threshold': np.arange(0.1, 0.25, 0.05),
+            #'weights': list( permutations(np.arange(21., 82., 20.), 3) )
+        #})
 
-    # Param grid for development, just one param combo so things run quickly.
-    #param_grid = ParameterGrid({
-        #'metric': ['cosine'],
-        #'linkage_method': ['average'],
-        #'threshold': [0.8],
-        #'weights': [[1,1,1]]
-    #})
+        # Param grid for development, just one param combo so things run quickly.
+        #param_grid = ParameterGrid({
+            #'metric': ['cosine'],
+            #'linkage_method': ['average'],
+            #'threshold': [0.8],
+            #'weights': [[1,1,1]]
+        #})
+
+        if approach == 'ihac':
+            param_grid = ParameterGrid({
+                'metric': ['cosine'],
+                'linkage_method': ['average'],
+                'threshold': np.arange(40., 100., 10.),
+                'weights': list( permutations(np.arange(21., 102., 20.), 3) ),
+                'lower_limit_scale': np.arange(0.1, 1.1, 0.1),
+                'upper_limit_scale': np.arange(1.1, 1.2, 0.05)
+            })
+
 
     # Not working right now, need more memory. scipy's pdist stores an array in memory
     # which craps out parallelization cause there's not enough memory to go around.
@@ -68,8 +80,12 @@ def evaluate(datapath, approach='hac'):
 
     results = []
     for pg in progress(param_grid, 'Running {0} parameter combos...'.format(len(param_grid))):
-        result = cluster(vecs_path, pg, approach)
-        results.append(result)
+        try:
+            result = cluster(vecs_path, pg, approach)
+            results.append(result)
+        except ValueError as e:
+            print("error:")
+            print(e)
 
     elapsed_time = time.time() - start_time
     print('Clustered in {0}'.format(elapsed_time))
