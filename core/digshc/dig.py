@@ -96,6 +96,8 @@ class DocumentIndexGraph(nx.DiGraph):
             doc_table.setdefault(doc_id, DocumentTableEntry())
             doc_table[doc_id].term_freqs[level] += 1
 
+        return document
+
     def get_doc(self, doc_id):
         return self.indexed_docs[doc_id]
 
@@ -179,7 +181,7 @@ class DocumentIndexGraph(nx.DiGraph):
     def get_sim_t(self, doc_a, doc_b):
         return cosine(doc_a.tfidf, doc_b.tfidf)
 
-    def get_blended_similarity(self, doc_a_id, doc_b_id, alpha=0.7):
+    def get_sim_blend(self, doc_a_id, doc_b_id, alpha=0.7):
         doc_a = self.get_doc(doc_a_id)
         doc_b = self.get_doc(doc_b_id)        
         sim_p = self.get_sim_p(doc_a, doc_b)
@@ -244,4 +246,4 @@ if __name__ == '__main__':
     for doc in docs:
         dig.index_document(doc)
 
-    print([dig.get_blended_similarity(a, b) for (a, b) in [(0, 1), (1, 2), (0, 2)]])
+    print([dig.get_sim_blend(a, b) for (a, b) in [(0, 1), (1, 2), (0, 2)]])
