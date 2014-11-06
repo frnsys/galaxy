@@ -41,6 +41,16 @@ def evaluate(datapath, approach='hac'):
         'weights': list( permutations(np.arange(1., 102., 20.), 3) )
     })
 
+    if approach == 'ihac':
+        param_grid = ParameterGrid({
+            'metric': ['cosine'],
+            'linkage_method': ['average'],
+            'threshold': np.arange(40., 100., 10.),
+            'weights': list( permutations(np.arange(21., 102., 20.), 3) ),
+            'lower_limit_scale': np.arange(0.1, 1.1, 0.1),
+            'upper_limit_scale': np.arange(1.1, 1.2, 0.05)
+        })
+
     # Param grid focused on values which seem to work best.
     #param_grid = ParameterGrid({
         #'metric': ['cosine'],
@@ -68,8 +78,12 @@ def evaluate(datapath, approach='hac'):
 
     results = []
     for pg in progress(param_grid, 'Running {0} parameter combos...'.format(len(param_grid))):
-        result = cluster(vecs_path, pg, approach)
-        results.append(result)
+        try:
+            result = cluster(vecs_path, pg, approach)
+            results.append(result)
+        except ValueError as e:
+            print("error:")
+            print(e)
 
     elapsed_time = time.time() - start_time
     print('Clustered in {0}'.format(elapsed_time))

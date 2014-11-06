@@ -5,6 +5,10 @@ import numpy as np
 from .util import split_dist_matrix
 
 class Node():
+    # For determining the lower and upper limits.
+    lower_limit_scale = 0.1
+    upper_limit_scale = 1.5
+
     def __init__(self):
         raise NotImplementedError
 
@@ -237,7 +241,7 @@ class ClusterNode(Node):
         The lower limit, which just needs to be some function of
         the nearest distance mean and the nearest distance standard deviation.
         """
-        return 0.5 * (self.nearest_dists_mean - self.nearest_dists_std)
+        return Node.lower_limit_scale * (self.nearest_dists_mean - self.nearest_dists_std)
 
     @property
     def upper_limit(self):
@@ -245,7 +249,7 @@ class ClusterNode(Node):
         The upper limit, which just needs to be some function of
         the nearest distance mean and the nearest distance standard deviation.
         """
-        return 1.5 * (self.nearest_dists_mean + self.nearest_dists_std)
+        return Node.upper_limit_scale * (self.nearest_dists_mean + self.nearest_dists_std)
 
     @property
     def is_root(self):
