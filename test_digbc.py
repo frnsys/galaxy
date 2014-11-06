@@ -5,7 +5,6 @@ dig = DocumentIndexGraphClusterer(threshold=0.003)
 
 docs, true_labels = load_articles('eval/data/event/handpicked.json')
 
-
 for idx, doc in enumerate(docs):
     dig.index_document(doc.text)
 

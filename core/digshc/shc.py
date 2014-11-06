@@ -4,7 +4,7 @@
 
     "Efficient Phrase-Based Document Indexing for Web Document Clustering"
 """
-from dig import DocumentIndexGraph
+from core.digshc.dig import DocumentIndexGraph
 import numpy as np
 
 def ndists(npoints):
@@ -33,7 +33,7 @@ class SimilarityHistogramClusterer(DocumentIndexGraph):
         self.assign_clusters(document)
 
     def assign_clusters(self, document):
-        good_clusters = []
+        found_clusters = False
         best_similarities = []
 
         # calculate similarities and add to similar clusters
@@ -50,9 +50,10 @@ class SimilarityHistogramClusterer(DocumentIndexGraph):
             if (hr_new >= hr_old) or (hr_new > HR_MIN and (hr_old - hr_new) < EPSILON):
                 self.add_doc_to_cluster(document, cluster)
                 self.high_sim_counts[cluster.id] = hr_new
+                found_clusters = True
 
         # if no similar cluster found, create new
-        if not good_clusters:
+        if not found_clusters:
             self.create_cluster(document)
 
     def create_cluster(self, first_doc):

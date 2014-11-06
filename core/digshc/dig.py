@@ -186,8 +186,9 @@ class DocumentIndexGraph(nx.DiGraph):
         doc_b = self.get_doc(doc_b_id)        
         sim_p = self.get_sim_p(doc_a, doc_b)
         sim_t = self.get_sim_t(doc_a, doc_b)
-
-        return alpha * sim_p + (1 - alpha) * sim_t
+        sim_blend = alpha * sim_p + (1 - alpha) * sim_t
+        # print("(%d, %d) -> %.4f" % (doc_a_id, doc_b_id, sim_blend))
+        return sim_blend
 
 
 class DocumentTableEntry(object):
@@ -225,7 +226,7 @@ class PhraseMatch(object):
     def extend(self, term):
         self.phrase.append(term)
 
-    def end_position(doc_id):
+    def end_position(self, doc_id):
         return self.positions[doc_id] + (0, len(self.phrase) - 1)
 
     def g(self):
