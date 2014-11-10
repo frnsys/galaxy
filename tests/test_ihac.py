@@ -442,7 +442,7 @@ class ClusterNodeTest(unittest.TestCase):
             (0)--1--(1)--2--(2)   (3)--3--(4)
         """
 
-        children = self.c.children
+        children = self.c.children.copy()
         c_i, c_j = self.c.split_children()
 
         expected_i_children = [children[i] for i in [0,1,2]]

@@ -10,6 +10,7 @@ from sklearn.metrics.pairwise import pairwise_distances
 from .ihac import IHAC
 from .ihac.node import Node
 
+from scipy import argmax
 from .digbc import DocumentIndexGraphClusterer
 
 """

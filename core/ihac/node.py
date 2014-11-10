@@ -1,3 +1,4 @@
+import logging
 from itertools import chain
 
 import numpy as np
@@ -22,8 +23,8 @@ class Node():
             return [ch for ch in self.parent.children if ch.id != self.id]
         return []
 
-    def __repr__(self):
-        return str('<Node {0} ({1})>'.format(self.center, self.id))
+    #def __repr__(self):
+        #return str('<Node {0} ({1})>'.format(self.center, self.id))
 
     def forms_lower_dense_region(self, C):
         """
@@ -74,8 +75,8 @@ class LeafNode(Node):
     def is_root(self):
         return False
 
-    def __repr__(self):
-        return str('<LeafNode {0} ({1})>'.format(self.center, self.id))
+    #def __repr__(self):
+        #return str('<LeafNode {0} ({1})>'.format(self.center, self.id))
 
 
 class ClusterNode(Node):
@@ -84,6 +85,8 @@ class ClusterNode(Node):
             A new cluster node is created by passing
             a list of children.
         """
+        logging.debug('Creating new cluster node {0}...'.format(id))
+
         self.id = id
         self.children = children
         self.parent = None
@@ -93,19 +96,49 @@ class ClusterNode(Node):
         self.hierarchy = hierarchy
 
         for ch in self.children:
+            # Before claiming this node as a child, we have to first remove
+            # the child from its former parent.
+            if ch.parent is not None:
+                ch.parent.remove_child(ch)
             ch.parent = self
         self.center = np.mean([c.center for c in self.children], axis=0)
 
         self._update_children_dists()
 
-    def __repr__(self):
-        return str('<ClusterNode {0}, ndm {1}, nds {2}, ll {3}, ul {4} ({5})>'.format(self.center, self.nearest_dists_mean, self.nearest_dists_std, self.lower_limit, self.upper_limit, self.id))
+    #def __repr__(self):
+        #return str('<ClusterNode {0}, ndm {1}, nds {2}, ll {3}, ul {4} ({5})>'.format(self.center, self.nearest_dists_mean, self.nearest_dists_std, self.lower_limit, self.upper_limit, self.id))
 
     @property
     def leaves(self):
         return list(chain.from_iterable([ch.leaves for ch in self.children]))
 
+    @property
+    def mdm(self):
+        """
+        Convenience access to the master distance matrix of the hierarchy.
+        """
+        return self.hierarchy.dists
+
+    @property
+    def cdm(self):
+        """
+        Get a view of the master distance matrix representing this cluster node's children.
+        Note that this is only a _view_ (i.e. a copy), thus any modifications you make are
+        not propagated to the original matrix.
+        """
+        rows, cols = zip(*[([ch.id], ch.id) for ch in self.children])
+        return self.mdm[rows, cols]
+
     def add_child(self, node):
+        logging.debug('Adding {0} to {1}...'.format(node.id, self.id))
+
+        # As a precaution, check if the child-to-be already has a parent,
+        # and remove them from it if they do.
+        # This has been the cause of a few bugs where a child may be found
+        # amongst the children of multiple parents.
+        if node.parent is not None:
+            node.parent.remove_child(node)
+
         node.parent = self
         self.children.append(node)
 
@@ -117,16 +150,66 @@ class ClusterNode(Node):
         self._update_children_dists()
 
     def remove_child(self, child):
+        logging.debug('Removing {0} from {1}...'.format(child.id, self.id))
+
         child.parent = None
 
         self.children.remove(child)
 
         self.center = np.mean([c.center for c in self.children], axis=0)
 
-        # (Re)calculate distances to this node's new center.
-        self.hierarchy.update_distances(self)
+        # It's possible that after removing a child there are no children left,
+        # in which case we skip these calculations. It is expected that the hierarchy
+        # managing this node properly clean up this childless node.
+        if self.children:
+            # (Re)calculate distances to this node's new center.
+            self.hierarchy.update_distances(self)
 
-        self._update_children_dists()
+            self._update_children_dists()
+
+        # If there are no children left, the center ends up being nan,
+        # so we replace it with zero.
+        # This node will eventually get destroyed by the managing hierarchy.
+        else:
+            self.center = np.array([0])
+            #self.hierarchy.delete_node(self)
+
+    def split_children(self):
+        """
+        Splits this node's children into two replacement nodes (this node gets destroyed).
+
+        We construct the minimum spanning tree (MST) out of this cluster node's
+        distance matrix (that is, the distance matrix of its children).
+
+        We split this MST by removing the edge connecting nodes m_i and m_j,
+        where m_i and m_j's edge has the greatest weight in the MST.
+        """
+        logging.debug('Splitting children of {0}'.format(self.id))
+
+        # The children dist matrix is a copy, so we can overwrite it.
+        c_i, c_j = split_dist_matrix(self.cdm, overwrite=True)
+
+        nodes = []
+        nodes_to_create = []
+        for c in [c_i, c_j]:
+            children = [self.children[i] for i in c]
+            if len(children) == 1:
+                n = children[0]
+                self.hierarchy.update_distances(n)
+                nodes.append(n)
+            else:
+                # Delay creating new cluster nodes until we've iterated through
+                # the children. Otherwise, cluster node creation will remove children
+                # and screw up iteration.
+                nodes_to_create.append(children)
+
+        # Now that we're done iterating over the children,
+        # we can safely begin creating new cluster nodes.
+        for children in nodes_to_create:
+            n = self.hierarchy.create_node(ClusterNode, children=children)
+            nodes.append(n)
+
+        return nodes
 
     def _update_children_dists(self):
         """
@@ -146,48 +229,6 @@ class ClusterNode(Node):
         self.nearest_dists_mean = np.mean(self.nearest_dists)
         self.nearest_dists_std  = np.std(self.nearest_dists)
 
-    @property
-    def mdm(self):
-        """
-        Convenience access to the master distance matrix of the hierarchy.
-        """
-        return self.hierarchy.dists
-
-    @property
-    def cdm(self):
-        """
-        Get a view of the master distance matrix representing this cluster node's children.
-        Note that this is only a _view_ (i.e. a copy), thus any modifications you make are
-        not propagated to the original matrix.
-        """
-        rows, cols = zip(*[([ch.id], ch.id) for ch in self.children])
-        return self.mdm[rows, cols]
-
-    def split_children(self):
-        """
-        Splits the set of children of self into two nodes.
-
-        We construct the minimum spanning tree (MST) out of this cluster node's
-        distance matrix (that is, the distance matrix of its children).
-
-        We split this MST by removing the edge connecting nodes m_i and m_j,
-        where m_i and m_j's edge has the greatest weight in the MST.
-        """
-        # The children dist matrix is a copy, so we can overwrite it.
-        c_i, c_j = split_dist_matrix(self.cdm, overwrite=True)
-
-        nodes = []
-        for c in [c_i, c_j]:
-            children = [self.children[i] for i in c]
-            if len(children) == 1:
-                n = children[0]
-                self.hierarchy.update_distances(n)
-            else:
-                n = self.hierarchy.create_node(ClusterNode, children=children)
-            nodes.append(n)
-        return nodes
-
-
     def get_nearest_child(self, n, clusters_only=False):
         if clusters_only:
             cols = [ch.id for ch in self.children if type(ch) is ClusterNode]
@@ -200,12 +241,13 @@ class ClusterNode(Node):
         i = np.argmin(dist_mat)
         return self.children[i], dist_mat[i]
 
-
     @property
     def nearest_children(self):
         """
         The pair of children having the shortest nearest distance.
         """
+        logging.debug('Getting nearest children for {0}...'.format(self.id))
+
         dist_mat = self.cdm
 
         # Fill the diagonal with nan. Otherwise, they are all 0,
@@ -214,6 +256,10 @@ class ClusterNode(Node):
         i, j = np.unravel_index(np.nanargmin(dist_mat), dist_mat.shape)
         n_i, n_j = self.children[i], self.children[j]
         d = dist_mat[i, j]
+
+        # Just for reassurance...
+        assert(n_j.parent == n_i.parent)
+
         return n_i, n_j, d
 
     @property

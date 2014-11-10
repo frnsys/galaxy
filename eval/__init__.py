@@ -35,13 +35,15 @@ def evaluate(datapath, approach='hac', param_grid=None):
 
 
     if param_grid is None:
+        pass
+
         # More exhaustive param grid.
-        param_grid = ParameterGrid({
-            'metric': ['cosine'],
-            'linkage_method': ['average'],
-            'threshold': np.arange(0.1, 1.0, 0.05),
-            'weights': list( permutations(np.arange(1., 102., 20.), 3) )
-        })
+        #param_grid = ParameterGrid({
+            #'metric': ['cosine'],
+            #'linkage_method': ['average'],
+            #'threshold': np.arange(0.1, 1.0, 0.05),
+            #'weights': list( permutations(np.arange(1., 102., 20.), 3) )
+        #})
 
         # Param grid focused on values which seem to work best.
         #param_grid = ParameterGrid({
@@ -59,15 +61,15 @@ def evaluate(datapath, approach='hac', param_grid=None):
             #'weights': [[1,1,1]]
         #})
 
-        if approach == 'ihac':
-            param_grid = ParameterGrid({
-                'metric': ['cosine'],
-                'linkage_method': ['average'],
-                'threshold': np.arange(40., 100., 10.),
-                'weights': list( permutations(np.arange(21., 102., 20.), 3) ),
-                'lower_limit_scale': np.arange(0.1, 1.1, 0.1),
-                'upper_limit_scale': np.arange(1.1, 1.2, 0.05)
-            })
+        #if approach == 'ihac':
+            #param_grid = ParameterGrid({
+                #'metric': ['cosine'],
+                #'linkage_method': ['average'],
+                #'threshold': np.arange(40., 100., 10.),
+                #'weights': list( permutations(np.arange(21., 102., 20.), 3) ),
+                #'lower_limit_scale': np.arange(0.1, 1.1, 0.1),
+                #'upper_limit_scale': np.arange(1.1, 1.2, 0.05)
+            #})
 
 
     # Not working right now, need more memory. scipy's pdist stores an array in memory
@@ -81,12 +83,8 @@ def evaluate(datapath, approach='hac', param_grid=None):
 
     results = []
     for pg in progress(param_grid, 'Running {0} parameter combos...'.format(len(param_grid))):
-        try:
-            result = cluster(vecs_path, pg, approach)
-            results.append(result)
-        except ValueError as e:
-            print("error:")
-            print(e)
+        result = cluster(vecs_path, pg, approach, articles)
+        results.append(result)
 
     elapsed_time = time.time() - start_time
     print('Clustered in {0}'.format(elapsed_time))
@@ -137,24 +135,33 @@ def cluster_p(vectors, pg_set):
     return [cluster(vectors, pg) for pg in pg_set]
 
 
-def cluster(filepath, pg, approach):
-    pg_ = pg.copy()
+def cluster(filepath, pg, approach, articles):
 
-    # Reload the original vectors, so when we weigh them we can just
-    # modify these vectors without copying them (to save memory).
-    with open(filepath, 'rb') as f:
-        vecs = pickle.load(f)
+    # Handled specially
+    if approach == 'digbc':
+        labels_pred = approaches[approach]([a.text for a in articles], **pg)
 
-    vecs = weight_vectors(vecs, weights=pg_['weights'])
+    else:
+        pg_ = pg.copy()
 
-    pg_.pop('weights', None)
+        print(pg)
 
-    try:
-        labels_pred = approaches[approach](vecs, **pg_)
-    except KeyError:
-        print('Unrecognized approach "{0}"'.format(approach))
+        # Reload the original vectors, so when we weigh them we can just
+        # modify these vectors without copying them (to save memory).
+        with open(filepath, 'rb') as f:
+            vecs = pickle.load(f)
 
-    if hasattr(pg['metric'], '__call__'): pg['metric'] = pg['metric'].__name__
+        vecs = weight_vectors(vecs, weights=pg_['weights'])
+
+        pg_.pop('weights', None)
+
+        try:
+            labels_pred = approaches[approach](vecs, **pg_)
+        except KeyError:
+            print('Unrecognized approach "{0}"'.format(approach))
+
+        if hasattr(pg['metric'], '__call__'): pg['metric'] = pg['metric'].__name__
+
     return {
         'params': pg,
         'labels': labels_pred,

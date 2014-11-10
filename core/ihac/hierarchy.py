@@ -1,4 +1,5 @@
 import sys
+import logging
 from itertools import chain
 
 import numpy as np
@@ -52,6 +53,8 @@ class Hierarchy():
         """
         Incorporate a new vector into the hierarchy.
         """
+        logging.debug('\n\nIncorporating...')
+
         n = self.create_node(LeafNode, vec=vec)
         n_c, d = self.get_closest_leaf(n)
         n_cp = n_c.parent
@@ -194,6 +197,8 @@ class Hierarchy():
             dm = np.hstack([dm, np.zeros((dm.shape[0], 1))])
             self.dists = np.vstack([dm, np.zeros(dm.shape[1])])
 
+        logging.debug('Creating node {0}...'.format(id))
+
         if node_cls == ClusterNode: init_args['hierarchy'] = self
         init_args['id'] = id
         node = node_cls(**init_args)
@@ -209,7 +214,11 @@ class Hierarchy():
 
         This will delete ALL nodes in the subtree of n.
         """
+        logging.debug('Deleting node {0}...'.format(n.id))
+
         i = n.id
+
+        #self.nodes.remove(n)
 
         # Take it out of the hierarchy.
         if n.parent:
@@ -275,6 +284,8 @@ class Hierarchy():
         The difference between merge and ins_hierarchy is that ins_hierarchy incorporates
         a node that is new (n_j) to the hierarchy.
         """
+        logging.debug('Inserting hierarchy...')
+
         if not n_i.is_root:
             # Remove n_i from its parent and replace it with a new cluster node
             # containing both n_i and n_j as children.
@@ -294,6 +305,8 @@ class Hierarchy():
         """
         This replaces a ClusterNode with its child if that child is an only child.
         """
+        logging.debug('Fixing node {0}...'.format(n.id))
+
         if len(n.children) == 1:
             n_c = n.children[0]
 
@@ -318,6 +331,8 @@ class Hierarchy():
 
         n_j must be a cluster node.
         """
+        logging.debug('Demoting {0} to under {1}...'.format(n_j.id, n_i.id))
+
         n_p = n_i.parent
         n_p.remove_child(n_j)
         n_i.add_child(n_j)
@@ -334,6 +349,8 @@ class Hierarchy():
         The difference between merge and ins_hierarchy is that merge works
         on nodes _already_ in the hierarchy.
         """
+        logging.debug('Merging {0} and {1}...'.format(n_i.id, n_j.id))
+
         n_p = n_i.parent
         n_p.remove_child(n_i)
         n_p.remove_child(n_j)
@@ -345,6 +362,8 @@ class Hierarchy():
         Split cluster node n by its largest nearest distance into two nodes,
         and replace it with those new nodes.
         """
+        logging.debug('Splitting {0}...'.format(n.id))
+
         n_i, n_j = n.split_children()
         if n.is_root:
             self.root = self.create_node(ClusterNode, children=[n_i, n_j])

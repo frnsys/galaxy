@@ -41,28 +41,29 @@ elif cmd == 'test':
 # Compare different clustering algorithms on different param grids.
 elif cmd == 'compare':
     approaches = {
-        'hac': ParameterGrid({
-            'metric': ['cosine'],
-            'linkage_method': ['average'],
-            'threshold': np.arange(0.1, 0.25, 0.05),
-            'weights': list( permutations(np.arange(21., 82., 20.), 3) )
-        }),
+        #'hac': ParameterGrid({
+            #'metric': ['cosine'],
+            #'linkage_method': ['average'],
+            #'threshold': np.arange(0.1, 0.25, 0.05),
+            #'weights': list( permutations(np.arange(1., 82., 20.), 3) )
+        #}),
         'ihac': ParameterGrid({
             'metric': ['cosine'],
             'linkage_method': ['average'],
             'threshold': np.arange(40., 100., 10.),
             'weights': list( permutations(np.arange(21., 102., 20.), 3) ),
             'lower_limit_scale': np.arange(0.1, 1.1, 0.1),
-            'upper_limit_scale': np.arange(1.1, 1.2, 0.05)
+            'upper_limit_scale': np.arange(1.1, 2.0, 0.05)
         }),
-        'digbc': ParameterGrid({
-            'threshold': np.arange(0.00295, 0.00330, 0.00005)
-        })
+        #'digbc': ParameterGrid({
+            #'threshold': np.arange(0.00295, 0.0100, 0.00005)
+        #})
     }
 
 
     results = {}
     for approach, param_grid in approaches.items():
+        print('Running the `{0}` algo...'.format(approach))
         results[approach] = evaluate(datapath, approach=approach, param_grid=param_grid)
 
     print(results)
