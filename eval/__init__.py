@@ -42,10 +42,10 @@ def evaluate(datapath, approach='digshc', param_grid=None):
         # pass
         if approach == 'digshc':
             param_grid = ParameterGrid({
-                'alpha': np.arange(0.65, 0.76, 0.5),
-                'threshold': np.arange(0.1, 0.31, 0.05),
-                'epsilon': np.arange(0.01, 0.031, 0.005),
-                'hr_min': np.arange(0.4, 0.61, 0.03)
+                'alpha': np.arange(0.65, 0.81, 0.05),
+                'threshold': [0.2]
+                'epsilon': np.arange(0.005, 0.011, 0.001),
+                'hr_min': np.arange(0.3, 0.51, 0.05)
             })
 
         # More exhaustive param grid.

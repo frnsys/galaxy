@@ -14,7 +14,7 @@ def ndists(npoints):
 
 class SimilarityHistogramClusterer(DocumentIndexGraph):
     """docstring for ClassName"""
-    def __init__(self, alpha=0.7, threshold=0.15, epsilon=0.02, hr_min=0.5):
+    def __init__(self, alpha=0.7, threshold=0.2, epsilon=0.01, hr_min=0.4):
         super(SimilarityHistogramClusterer, self).__init__(alpha=alpha)
         self.threshold = threshold
         self.epsilon = epsilon
