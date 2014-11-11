@@ -8,7 +8,7 @@ import numpy as np
 from sklearn import metrics
 from sklearn.grid_search import ParameterGrid
 
-from core.cluster import hac, ihac, digbc
+from core.cluster import hac, ihac, digbc, digshc
 from core.util import labels_to_lists
 from eval.util import progress
 from eval.report import build_report
@@ -22,7 +22,8 @@ Member = namedtuple('Member', ['id', 'title'])
 approaches = {
     'hac': hac,
     'ihac': ihac,
-    'digbc': digbc
+    'digbc': digbc,
+    'digshc': digshc
 }
 
 def evaluate(datapath, approach='hac', param_grid=None):
@@ -35,7 +36,14 @@ def evaluate(datapath, approach='hac', param_grid=None):
 
 
     if param_grid is None:
-        pass
+        # pass
+        if approach == 'digshc':
+            param_grid = ParameterGrid({
+                'alpha': np.arange(0.2, 0.81, 0.1)
+                'threshold': np.arange(0.1., 0.51, 0.05),
+                'epsilon': np.arange(0.01, 0.051, 0.005),
+                'hr_min': np.arange(0.4, 0.61, 0.02)
+            })
 
         # More exhaustive param grid.
         #param_grid = ParameterGrid({
@@ -61,15 +69,17 @@ def evaluate(datapath, approach='hac', param_grid=None):
             #'weights': [[1,1,1]]
         #})
 
-        #if approach == 'ihac':
-            #param_grid = ParameterGrid({
-                #'metric': ['cosine'],
-                #'linkage_method': ['average'],
-                #'threshold': np.arange(40., 100., 10.),
-                #'weights': list( permutations(np.arange(21., 102., 20.), 3) ),
-                #'lower_limit_scale': np.arange(0.1, 1.1, 0.1),
-                #'upper_limit_scale': np.arange(1.1, 1.2, 0.05)
-            #})
+        # if approach == 'ihac':
+        #     param_grid = ParameterGrid({
+        #         'metric': ['cosine'],
+        #         'linkage_method': ['average'],
+        #         'threshold': np.arange(40., 100., 10.),
+        #         'weights': list( permutations(np.arange(21., 102., 20.), 3) ),
+        #         'lower_limit_scale': np.arange(0.1, 1.1, 0.1),
+        #         'upper_limit_scale': np.arange(1.1, 1.2, 0.05)
+        #     })
+
+
 
 
     # Not working right now, need more memory. scipy's pdist stores an array in memory

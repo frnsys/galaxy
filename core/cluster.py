@@ -98,6 +98,7 @@ def digbc(docs, threshold):
 
     return labels
 
+
 def digshc(docs, alpha, threshold, epsilon, hr_min):
     shc = SimilarityHistogramClusterer(alpha, threshold, epsilon, hr_min)
 
