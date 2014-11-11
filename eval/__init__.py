@@ -26,23 +26,26 @@ approaches = {
     'digshc': digshc
 }
 
-def evaluate(datapath, approach='hac', param_grid=None):
+def evaluate(datapath, approach='digshc', param_grid=None):
     articles, labels_true = load_articles(datapath)
 
-    # Build the vectors if they do not exist.
-    vecs_path = '/tmp/{0}.pickle'.format(datapath.replace('/', '.'))
-    if not os.path.exists(vecs_path):
-        build_vectors(articles, vecs_path)
-
+    if 'dig' in approach:
+        # articles = [a.text for a in articles]
+        vecs_path = None
+    else:
+        # Build the vectors if they do not exist.
+        vecs_path = '/tmp/{0}.pickle'.format(datapath.replace('/', '.'))
+        if not os.path.exists(vecs_path):
+            build_vectors(articles, vecs_path)
 
     if param_grid is None:
         # pass
         if approach == 'digshc':
             param_grid = ParameterGrid({
-                'alpha': np.arange(0.2, 0.81, 0.1)
-                'threshold': np.arange(0.1., 0.51, 0.05),
-                'epsilon': np.arange(0.01, 0.051, 0.005),
-                'hr_min': np.arange(0.4, 0.61, 0.02)
+                'alpha': np.arange(0.65, 0.76, 0.5),
+                'threshold': np.arange(0.1, 0.31, 0.05),
+                'epsilon': np.arange(0.01, 0.031, 0.005),
+                'hr_min': np.arange(0.4, 0.61, 0.03)
             })
 
         # More exhaustive param grid.
@@ -148,7 +151,7 @@ def cluster_p(vectors, pg_set):
 def cluster(filepath, pg, approach, articles):
 
     # Handled specially
-    if approach == 'digbc':
+    if 'dig' in approach:
         labels_pred = approaches[approach]([a.text for a in articles], **pg)
 
     else:
