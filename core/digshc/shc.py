@@ -6,19 +6,18 @@
 """
 from core.digshc.dig import DocumentIndexGraph
 import numpy as np
+import scipy
 
 def ndists(npoints):
     return (npoints * (npoints - 1)) / 2
 
-EPSILON = 0.02
-
-HR_MIN = 0.5
-
 class SimilarityHistogramClusterer(DocumentIndexGraph):
     """docstring for ClassName"""
-    def __init__(self, threshold=0.15):
-        super(SimilarityHistogramClusterer, self).__init__()
+    def __init__(self, alpha=0.7, threshold=0.15, epsilon=0.02, hr_min=0.5):
+        super(SimilarityHistogramClusterer, self).__init__(alpha=alpha)
         self.threshold = threshold
+        self.epsilon = epsilon
+        self.hr_min = hr_min
         self.formed_clusters = []
         self.high_sim_counts = {} # counts similiraties above threshold for each cluster
 
@@ -47,7 +46,7 @@ class SimilarityHistogramClusterer(DocumentIndexGraph):
             hr_new_den = ndists(cluster.size() + 1)
             hr_new = hr_new_num * 1.0 / hr_new_den
             # import ipdb; ipdb.set_trace()
-            if (hr_new >= hr_old) or (hr_new > HR_MIN and (hr_old - hr_new) < EPSILON):
+            if (hr_new >= hr_old) or (hr_new > self.hr_min and (hr_old - hr_new) < self.epsilon):
                 self.add_doc_to_cluster(document, cluster)
                 self.high_sim_counts[cluster.id] = hr_new
                 found_clusters = True
@@ -63,6 +62,15 @@ class SimilarityHistogramClusterer(DocumentIndexGraph):
 
     def add_doc_to_cluster(self, document, cluster):
         cluster.add_doc(document)
+
+    def get_cluster_sim(self, cluster, doc):
+        sims = np.array([self.get_sim_blend(doc.id, d_id) for d_id
+                    in cluster.doc_ids if d_id != doc.id])
+        return scipy.average(sims)
+
+    def get_cluster(self, cluster_id):
+        return self.formed_clusters[cluster_id]
+
 
 
 class Cluster(object):

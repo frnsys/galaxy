@@ -66,13 +66,14 @@ class Document(object):
 
 class DocumentIndexGraph(nx.DiGraph):
     """
-    Document Index Graph structure
-    as defined on the paper
-
+    Document Index Graph structure, as defined on the paper
     "Efficient Phrase-Based Document Indexing for Web Document Clustering"
+
+    alpha: similarity blend coefficient, weight of phrase-based component
     """
-    def __init__(self):
+    def __init__(self, alpha=0.7):
         super(DocumentIndexGraph, self).__init__()
+        self.alpha = alpha
         self.document_tables = {}
         self.indexed_docs = []
         self.matching_phrases = {}
@@ -181,12 +182,12 @@ class DocumentIndexGraph(nx.DiGraph):
     def get_sim_t(self, doc_a, doc_b):
         return cosine(doc_a.tfidf, doc_b.tfidf)
 
-    def get_sim_blend(self, doc_a_id, doc_b_id, alpha=0.7):
+    def get_sim_blend(self, doc_a_id, doc_b_id):
         doc_a = self.get_doc(doc_a_id)
         doc_b = self.get_doc(doc_b_id)        
         sim_p = self.get_sim_p(doc_a, doc_b)
         sim_t = self.get_sim_t(doc_a, doc_b)
-        sim_blend = alpha * sim_p + (1 - alpha) * sim_t
+        sim_blend = self.alpha * sim_p + (1 - self.alpha) * sim_t
         # print("(%d, %d) -> %.4f" % (doc_a_id, doc_b_id, sim_blend))
         return sim_blend
 
