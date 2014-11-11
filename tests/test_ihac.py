@@ -49,7 +49,38 @@ class IHACTest(unittest.TestCase):
         bad_nodes = [n for n in self.ihac.hierarchy.nodes if type(n) is ClusterNode and len(n.children) <= 1]
         self.assertFalse(bad_nodes)
 
+    def test_load_and_save(self):
+        tmp_path = '/tmp/test_hierarchy.pickle'
+        points = [0.30, 0.40, 0.80, 2.70, 0.20, 2.40]
+        points = [np.array([p]) for p in points]
 
+        self.ihac.fit(points)
+        self.ihac.save(tmp_path)
+
+        ihac = IHAC()
+        ihac.load(tmp_path)
+
+        _, labels_1 = self.ihac.clusters()
+        _, labels_2 = ihac.clusters()
+
+        self.assertEqual(labels_1, labels_2)
+
+    def test_many_points(self):
+        """
+        Test clustering with 160 points.
+        This should just execute without error.
+        """
+        cluster_a1 = np.arange(0,0.4,0.01)
+        cluster_a2 = np.arange(0.6,1,0.01)
+        cluster_b1 = np.arange(2,2.4,0.01)
+        cluster_b2 = np.arange(2.6,3,0.01)
+        points = np.append(cluster_a1, cluster_a2)
+        points = np.append(points, cluster_b1)
+        points = np.append(points, cluster_b2)
+        np.random.shuffle(points)
+        points = [np.array([p]) for p in points]
+
+        self.ihac.fit(points)
 
 class HierarchyTest(unittest.TestCase):
     def setUp(self):
@@ -165,12 +196,33 @@ class HierarchyTest(unittest.TestCase):
         self.assertEqual(dist, 1)
 
     def test_demote(self):
+        # Build three sibling cluster nodes.
+        n_i = self._build_cluster_node()
+        n_j = self._build_cluster_node()
+        n_k = self._build_cluster_node()
+        parent = self.h.create_node(ClusterNode, children=[n_i, n_j, n_k])
+
+        self.h.demote(n_i, n_j)
+        self.assertEqual(n_j.parent, n_i)
+
+    def test_demote_omits_clusters_with_only_childs(self):
+        # If demoting causes a ClusterNode to have only one child, that node
+        # should be removed and replaced by its only child node.
+
         # Build two sibling cluster nodes.
         n_i = self._build_cluster_node()
         n_j = self._build_cluster_node()
         parent = self.h.create_node(ClusterNode, children=[n_i, n_j])
 
         self.h.demote(n_i, n_j)
+
+        # The parent should be removed.
+        self.assertEqual(parent.id, None)
+
+        # n_i should be the root now.
+        self.assertEqual(n_i.parent, None)
+
+        self.assertTrue(n_j in n_i.children)
         self.assertEqual(n_j.parent, n_i)
 
     def test_merge(self):
@@ -233,8 +285,6 @@ class HierarchyTest(unittest.TestCase):
 
         clusters = self.h.fcluster(distance_threshold=0.0)
         self.assertEqual(clusters, [[self.initial_leaf], [node_i], [node_j]])
-
-
 
 class ClusterNodeTest(unittest.TestCase):
     def setUp(self):
@@ -392,7 +442,7 @@ class ClusterNodeTest(unittest.TestCase):
             (0)--1--(1)--2--(2)   (3)--3--(4)
         """
 
-        children = self.c.children
+        children = self.c.children.copy()
         c_i, c_j = self.c.split_children()
 
         expected_i_children = [children[i] for i in [0,1,2]]
@@ -400,11 +450,3 @@ class ClusterNodeTest(unittest.TestCase):
 
         self.assertEqual(c_i.children, expected_i_children)
         self.assertEqual(c_j.children, expected_j_children)
-
-
-if __name__ == '__main__':
-    unittest.main()
-
-
-
-
