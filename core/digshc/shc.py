@@ -8,6 +8,7 @@ from core.digshc.dig import DocumentIndexGraph
 import numpy as np
 import scipy
 
+
 def ndists(npoints):
     return (npoints * (npoints - 1)) / 2
 
@@ -19,7 +20,9 @@ class SimilarityHistogramClusterer(DocumentIndexGraph):
         self.epsilon = epsilon
         self.hr_min = hr_min
         self.formed_clusters = []
-        self.high_sim_counts = {} # counts similiraties above threshold for each cluster
+        # To keep counts of similarities above threshold
+        # for each cluster (used in Histogram Rate calculation)
+        self.high_sim_counts = {}
 
     def get_histogram_ratio(self, cluster):
         if cluster.size() > 1:

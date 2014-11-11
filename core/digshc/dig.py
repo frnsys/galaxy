@@ -6,9 +6,10 @@ import string
 from nltk.tokenize import sent_tokenize, word_tokenize
 from nltk.corpus import stopwords
 from nltk.stem.wordnet import WordNetLemmatizer
+from scipy.spatial.distance import cosine
 
 from core.vectorize import vectorize
-from scipy.spatial.distance import cosine
+from core.ihac.util import mirror_upper, triu_index
 
 LEMMATIZER = WordNetLemmatizer()
 
@@ -78,7 +79,7 @@ class DocumentIndexGraph(nx.DiGraph):
         self.indexed_docs = []
         self.matching_phrases = {}
         self.phrase_frequencies = {}
-
+        self.sims = None
     def index_document(self, plain_text):
         doc_id = len(self.indexed_docs)
         document = Document(doc_id, plain_text)
@@ -96,6 +97,15 @@ class DocumentIndexGraph(nx.DiGraph):
             doc_table = self.get_doc_table(sent[-1])
             doc_table.setdefault(doc_id, DocumentTableEntry())
             doc_table[doc_id].term_freqs[level] += 1
+
+        # enlarge similarity matrix to hold distances to new doc
+        if self.sims is None:
+            self.sims = np.array([[0.]], order='C')
+        else:
+            sm = self.sims
+            sm = np.hstack([sm, -np.ones((sm.shape[0], 1))])
+            self.sims = np.vstack([sm, -np.ones(sm.shape[1])])
+            np.fill_diagonal(self.sims, 0)
 
         return document
 
@@ -183,13 +193,16 @@ class DocumentIndexGraph(nx.DiGraph):
         return cosine(doc_a.tfidf, doc_b.tfidf)
 
     def get_sim_blend(self, doc_a_id, doc_b_id):
-        doc_a = self.get_doc(doc_a_id)
-        doc_b = self.get_doc(doc_b_id)        
-        sim_p = self.get_sim_p(doc_a, doc_b)
-        sim_t = self.get_sim_t(doc_a, doc_b)
-        sim_blend = self.alpha * sim_p + (1 - self.alpha) * sim_t
+        row, col = triu_index(doc_a_id, doc_b_id)
+        if self.sims[row, col] == -1.0:
+            doc_a = self.get_doc(doc_a_id)
+            doc_b = self.get_doc(doc_b_id)        
+            sim_p = self.get_sim_p(doc_a, doc_b)
+            sim_t = self.get_sim_t(doc_a, doc_b)
+            sim_blend = self.alpha * sim_p + (1 - self.alpha) * sim_t
+            self.sims[row, col] = sim_blend
         # print("(%d, %d) -> %.4f" % (doc_a_id, doc_b_id, sim_blend))
-        return sim_blend
+        return self.sims[row, col]
 
 
 class DocumentTableEntry(object):
