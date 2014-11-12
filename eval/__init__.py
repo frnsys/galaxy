@@ -35,41 +35,13 @@ def evaluate(datapath, approach='hac', param_grid=None):
 
 
     if param_grid is None:
-        pass
-
-        # More exhaustive param grid.
-        #param_grid = ParameterGrid({
-            #'metric': ['cosine'],
-            #'linkage_method': ['average'],
-            #'threshold': np.arange(0.1, 1.0, 0.05),
-            #'weights': list( permutations(np.arange(1., 102., 20.), 3) )
-        #})
-
-        # Param grid focused on values which seem to work best.
-        #param_grid = ParameterGrid({
-            #'metric': ['cosine'],
-            #'linkage_method': ['average'],
-            #'threshold': np.arange(0.1, 0.25, 0.05),
-            #'weights': list( permutations(np.arange(21., 82., 20.), 3) )
-        #})
-
         # Param grid for development, just one param combo so things run quickly.
-        #param_grid = ParameterGrid({
-            #'metric': ['cosine'],
-            #'linkage_method': ['average'],
-            #'threshold': [0.8],
-            #'weights': [[1,1,1]]
-        #})
-
-        #if approach == 'ihac':
-            #param_grid = ParameterGrid({
-                #'metric': ['cosine'],
-                #'linkage_method': ['average'],
-                #'threshold': np.arange(40., 100., 10.),
-                #'weights': list( permutations(np.arange(21., 102., 20.), 3) ),
-                #'lower_limit_scale': np.arange(0.1, 1.1, 0.1),
-                #'upper_limit_scale': np.arange(1.1, 1.2, 0.05)
-            #})
+        param_grid = ParameterGrid({
+            'metric': ['cosine'],
+            'linkage_method': ['average'],
+            'threshold': [0.8],
+            'weights': [[1,1,1]]
+        })
 
 
     # Not working right now, need more memory. scipy's pdist stores an array in memory
@@ -143,8 +115,6 @@ def cluster(filepath, pg, approach, articles):
 
     else:
         pg_ = pg.copy()
-
-        print(pg)
 
         # Reload the original vectors, so when we weigh them we can just
         # modify these vectors without copying them (to save memory).
