@@ -4,6 +4,7 @@ import pickle
 
 import numpy as np
 from scipy.sparse import vstack, lil_matrix
+from scipy import average
 from sklearn.grid_search import ParameterGrid
 
 from eval import weight_vectors, score
@@ -13,7 +14,7 @@ from core.ihac import IHAC
 from core.ihac.node import Node
 
 
-def evaluate(datapath):
+def evaluate_average(datapath):
     articles, labels_true = load_articles(datapath)
 
     # Build the vectors if they do not exist.
@@ -25,15 +26,27 @@ def evaluate(datapath):
     param_grid = ParameterGrid({
         'metric': ['cosine'],
         'linkage_method': ['average'],
-        'threshold': [60.],
+        'threshold': [50.],
         'weights': [[21., 81., 41.]],
         'lower_limit_scale': [0.8],
         'upper_limit_scale': [1.15]
     })
     pgs = [pg for pg in param_grid]
 
-    result = cluster(vecs_path, pgs[0], labels_true)
-    print(result)
+    TRIALS = 30
+    results = {}
+    for i in range(TRIALS):
+        result, n_clusters = cluster(vecs_path, pgs[0], labels_true)
+        if n_clusters in range(20, 29):
+            for metric in result:
+                results.setdefault(metric, [])
+                results[metric].append(result[metric])
+        print(n_clusters)
+
+    for metric in results:
+        results[metric] = average(results[metric])
+    
+    print(sorted(results.items()))
 
 
 def cluster(filepath, pg, labels_true):
@@ -55,11 +68,10 @@ def cluster(filepath, pg, labels_true):
 
     clusters, labels_pred = model.clusters(distance_threshold=pg['threshold'], with_labels=True)
 
-    return score(labels_true, labels_pred)
+    return score(labels_true, labels_pred), len(set(labels_pred))
 
 
-def shufflechunk(vecs, labels_true, n_chunks=3):
-
+def shufflechunk(vecs, labels_true, n_chunks=1):
     # Pair up the vectors with their labels.
     labeled_vecs = list(zip(list(vecs), labels_true))
 
@@ -77,7 +89,7 @@ def shufflechunk(vecs, labels_true, n_chunks=3):
             v = vstack(vecs)
 
         else:
-            end = random.randint(1, size - n_chunks - i + 1)
+            end = random.randint(1, size - n_chunks - i + 2)
             v = vstack(vecs[:end])
             vecs = vecs[end:]
 
@@ -85,4 +97,5 @@ def shufflechunk(vecs, labels_true, n_chunks=3):
     return chunks, labels_true
 
 if __name__ == '__main__':
-    evaluate('eval/data/event/handpicked.json')
+    # evaluate('eval/data/event/handpicked.json')
+    evaluate_average('eval/data/event/handpicked.json')
