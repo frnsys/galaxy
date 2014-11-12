@@ -48,18 +48,15 @@ def cluster(filepath, pg, labels_true):
 
     vecs = weight_vectors(vecs, weights=pg['weights'])
 
-    chunks, labels_true = shufflechunk(vecs, labels_true)
-
-    for chunk in chunks:
-        model.fit(chunk.toarray())
+    vecs, labels_true = shuffle(vecs, labels_true)
+    model.fit(vecs.toarray())
 
     clusters, labels_pred = model.clusters(distance_threshold=pg['threshold'], with_labels=True)
 
     return score(labels_true, labels_pred)
 
 
-def shufflechunk(vecs, labels_true, n_chunks=3):
-
+def shuffle(vecs, labels_true):
     # Pair up the vectors with their labels.
     labeled_vecs = list(zip(list(vecs), labels_true))
 
@@ -69,6 +66,10 @@ def shufflechunk(vecs, labels_true, n_chunks=3):
     # Separate the lists again.
     vecs, labels_true = zip(*labeled_vecs)
 
+    return vstack(vecs), list(labels_true)
+
+
+def chunk(vecs, n_chunks=3):
     # Break it up into randomly-sized chunks!
     chunks = []
     for i in range(n_chunks):
@@ -82,7 +83,7 @@ def shufflechunk(vecs, labels_true, n_chunks=3):
             vecs = vecs[end:]
 
         chunks.append(v)
-    return chunks, labels_true
+    return chunks
 
 if __name__ == '__main__':
     evaluate('eval/data/event/handpicked.json')
