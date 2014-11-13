@@ -14,23 +14,31 @@ datapath = sys.argv[2]
 
 
 approaches = {
-    'hac': ParameterGrid({
-        'metric': ['cosine'],
-        'linkage_method': ['average'],
-        'threshold': np.arange(0.1, 0.25, 0.05),
-        'weights': list( permutations(np.arange(1., 82., 20.), 3) )
-    }),
+    #'hac': ParameterGrid({
+        #'metric': ['cosine'],
+        #'linkage_method': ['average'],
+        #'threshold': np.arange(0.1, 0.25, 0.05),
+        #'weights': list( permutations(np.arange(1., 82., 20.), 3) )
+    #}),
+    #'ihac': ParameterGrid({
+        #'metric': ['cosine'],
+        #'linkage_method': ['average'],
+        #'threshold': np.arange(40., 100., 10.),
+        #'weights': list( permutations(np.arange(21., 102., 20.), 3) ),
+        #'lower_limit_scale': np.arange(0.1, 1.1, 0.1),
+        #'upper_limit_scale': np.arange(1.1, 2.0, 0.05)
+    #}),
     'ihac': ParameterGrid({
         'metric': ['cosine'],
         'linkage_method': ['average'],
-        'threshold': np.arange(40., 100., 10.),
-        'weights': list( permutations(np.arange(21., 102., 20.), 3) ),
-        'lower_limit_scale': np.arange(0.1, 1.1, 0.1),
-        'upper_limit_scale': np.arange(1.1, 2.0, 0.05)
+        'threshold': [60.],
+        'weights': [(21., 81., 41.)],
+        'lower_limit_scale': [0.8],
+        'upper_limit_scale': [1.15]
     }),
-    'digbc': ParameterGrid({
-        'threshold': np.arange(0.00295, 0.0100, 0.00005)
-    })
+    #'digbc': ParameterGrid({
+        #'threshold': np.arange(0.00295, 0.0100, 0.00005)
+    #})
 }
 
 
