@@ -6,9 +6,10 @@ import string
 from nltk.tokenize import sent_tokenize, word_tokenize
 from nltk.corpus import stopwords
 from nltk.stem.wordnet import WordNetLemmatizer
+from scipy.spatial.distance import cosine
 
 from core.vectorize import vectorize
-from scipy.spatial.distance import cosine
+from core.ihac.util import mirror_upper, triu_index
 
 LEMMATIZER = WordNetLemmatizer()
 
@@ -64,21 +65,21 @@ class Document(object):
         return self.wlength
 
 
-
 class DocumentIndexGraph(nx.DiGraph):
     """
-    Document Index Graph structure
-    as defined on the paper
-
+    Document Index Graph structure, as defined on the paper
     "Efficient Phrase-Based Document Indexing for Web Document Clustering"
+
+    alpha: similarity blend coefficient, weight of phrase-based component
     """
-    def __init__(self):
+    def __init__(self, alpha=0.7):
         super(DocumentIndexGraph, self).__init__()
+        self.alpha = alpha
         self.document_tables = {}
         self.indexed_docs = []
         self.matching_phrases = {}
         self.phrase_frequencies = {}
-
+        self.sims = None
     def index_document(self, plain_text):
         doc_id = len(self.indexed_docs)
         document = Document(doc_id, plain_text)
@@ -96,6 +97,17 @@ class DocumentIndexGraph(nx.DiGraph):
             doc_table = self.get_doc_table(sent[-1])
             doc_table.setdefault(doc_id, DocumentTableEntry())
             doc_table[doc_id].term_freqs[level] += 1
+
+        # enlarge similarity matrix to hold distances to new doc
+        if self.sims is None:
+            self.sims = np.array([[0.]], order='C')
+        else:
+            sm = self.sims
+            sm = np.hstack([sm, -np.ones((sm.shape[0], 1))])
+            self.sims = np.vstack([sm, -np.ones(sm.shape[1])])
+            np.fill_diagonal(self.sims, 0)
+
+        return document
 
     def get_doc(self, doc_id):
         return self.indexed_docs[doc_id]
@@ -180,17 +192,17 @@ class DocumentIndexGraph(nx.DiGraph):
     def get_sim_t(self, doc_a, doc_b):
         return cosine(doc_a.tfidf, doc_b.tfidf)
 
-    def get_blended_similarity(self, doc_a_id, doc_b_id, alpha=0.7):
-        doc_a = self.get_doc(doc_a_id)
-        doc_b = self.get_doc(doc_b_id)        
-        sim_p = self.get_sim_p(doc_a, doc_b)
-        sim_t = self.get_sim_t(doc_a, doc_b)
-
-        return alpha * sim_p + (1 - alpha) * sim_t
-
-        
-
-
+    def get_sim_blend(self, doc_a_id, doc_b_id):
+        row, col = triu_index(doc_a_id, doc_b_id)
+        if self.sims[row, col] == -1.0:
+            doc_a = self.get_doc(doc_a_id)
+            doc_b = self.get_doc(doc_b_id)        
+            sim_p = self.get_sim_p(doc_a, doc_b)
+            sim_t = self.get_sim_t(doc_a, doc_b)
+            sim_blend = self.alpha * sim_p + (1 - self.alpha) * sim_t
+            self.sims[row, col] = sim_blend
+        # print("(%d, %d) -> %.4f" % (doc_a_id, doc_b_id, sim_blend))
+        return self.sims[row, col]
 
 
 class DocumentTableEntry(object):
@@ -228,7 +240,7 @@ class PhraseMatch(object):
     def extend(self, term):
         self.phrase.append(term)
 
-    def end_position(doc_id):
+    def end_position(self, doc_id):
         return self.positions[doc_id] + (0, len(self.phrase) - 1)
 
     def g(self):
@@ -240,8 +252,6 @@ class PhraseMatch(object):
         return (2.0 * l_i / (s_a + s_b)) ** gamma
 
 
-
-
 if __name__ == '__main__':
     docs = ["river rafting. mild river rafting. river rafting trips",
             "wild river adventures. river rafting vacation plan",
@@ -251,4 +261,4 @@ if __name__ == '__main__':
     for doc in docs:
         dig.index_document(doc)
 
-    print([dig.get_blended_similarity(a, b) for (a, b) in [(0, 1), (1, 2), (0, 2)]])
+    print([dig.get_sim_blend(a, b) for (a, b) in [(0, 1), (1, 2), (0, 2)]])

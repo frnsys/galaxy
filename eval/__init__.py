@@ -8,7 +8,7 @@ import numpy as np
 from sklearn import metrics
 from sklearn.grid_search import ParameterGrid
 
-from core.cluster import hac, ihac, digbc
+from core.cluster import hac, ihac, digbc, digshc
 from core.util import labels_to_lists
 from eval.util import progress
 from eval.report import build_report
@@ -22,17 +22,21 @@ Member = namedtuple('Member', ['id', 'title'])
 approaches = {
     'hac': hac,
     'ihac': ihac,
-    'digbc': digbc
+    'digbc': digbc,
+    'digshc': digshc
 }
 
-def evaluate(datapath, approach='hac', param_grid=None):
+def evaluate(datapath, approach='digshc', param_grid=None):
     articles, labels_true = load_articles(datapath)
 
-    # Build the vectors if they do not exist.
-    vecs_path = '/tmp/{0}.pickle'.format(datapath.replace('/', '.'))
-    if not os.path.exists(vecs_path):
-        build_vectors(articles, vecs_path)
-
+    if 'dig' in approach:
+        # articles = [a.text for a in articles]
+        vecs_path = None
+    else:
+        # Build the vectors if they do not exist.
+        vecs_path = '/tmp/{0}.pickle'.format(datapath.replace('/', '.'))
+        if not os.path.exists(vecs_path):
+            build_vectors(articles, vecs_path)
 
     if param_grid is None:
         # Param grid for development, just one param combo so things run quickly.
@@ -42,6 +46,15 @@ def evaluate(datapath, approach='hac', param_grid=None):
             'threshold': [0.8],
             'weights': [[1,1,1]]
         })
+
+        # pass
+        if approach == 'digshc':
+            param_grid = ParameterGrid({
+                'alpha': np.arange(0.65, 0.81, 0.05),
+                'threshold': [0.2]
+                'epsilon': np.arange(0.005, 0.011, 0.001),
+                'hr_min': np.arange(0.3, 0.51, 0.05)
+            })
 
 
     # Not working right now, need more memory. scipy's pdist stores an array in memory
@@ -110,7 +123,7 @@ def cluster_p(vectors, pg_set):
 def cluster(filepath, pg, approach, articles):
 
     # Handled specially
-    if approach == 'digbc':
+    if 'dig' in approach:
         labels_pred = approaches[approach]([a.text for a in articles], **pg)
 
     else:

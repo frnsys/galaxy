@@ -7,11 +7,12 @@ from scipy.cluster.hierarchy import linkage, fcluster
 import numpy as np
 from sklearn.metrics.pairwise import pairwise_distances
 
-from .ihac import IHAC
-from .ihac.node import Node
+from core.ihac import IHAC
+from core.ihac.node import Node
 
 from scipy import argmax
-from .digbc import DocumentIndexGraphClusterer
+from core.digbc import DocumentIndexGraphClusterer
+from core.digshc.shc import SimilarityHistogramClusterer
 
 """
 Notes:
@@ -96,3 +97,31 @@ def digbc(docs, threshold):
         labels.append(clusters[max_i].id)
 
     return labels
+
+
+def digshc(docs, alpha, threshold, epsilon, hr_min):
+    shc = SimilarityHistogramClusterer(alpha, threshold, epsilon, hr_min)
+
+    for doc in docs:
+        shc.fit(doc)
+
+    doc_clus_map = {}
+    for idx, clus in enumerate(shc.formed_clusters):
+        for doc_id in clus.doc_ids:
+            doc_clus_map.setdefault(doc_id, [])
+            doc_clus_map[doc_id].append(idx)
+
+    labels = []
+    for id in sorted(doc_clus_map):
+        cluster_ids = doc_clus_map[id]
+        if len(cluster_ids) == 1:
+            best_cl_id = cluster_ids[0]
+        else:
+            clusters = [shc.get_cluster(cl_id) for cl_id in cluster_ids]
+            sims = [shc.get_cluster_sim(cl, shc.get_doc(id)) for cl in clusters]
+            max_i = argmax(sims)
+            best_cl_id = clusters[max_i].id
+        labels.append(best_cl_id)
+
+    return labels
+

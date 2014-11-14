@@ -1,5 +1,5 @@
 from eval.data import load_articles
-from core.digbc.dig import DocumentIndexGraphClusterer
+from core.digbc import DocumentIndexGraphClusterer
 import numpy as np
 from scipy import argmax
 from eval import score
