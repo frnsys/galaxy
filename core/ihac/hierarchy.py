@@ -13,8 +13,6 @@ import subprocess as sp
 from .node import LeafNode, ClusterNode
 from .util import mirror_upper, triu_index
 
-def distance(i, j):
-    return euclidean(i, j)
 
 class Hierarchy():
     """
@@ -243,6 +241,9 @@ class Hierarchy():
             ch.parent = None
             self.delete_node(ch)
 
+    def distance_function(self, a, b):
+        # TODO: pass distance function as parameter in init
+        return euclidean(a.center, b.center)
 
     def update_distances(self, node):
         """
@@ -250,7 +251,7 @@ class Hierarchy():
         """
         for node_ in [n for n in self.nodes if n.id is not None]:
             row, col = triu_index(node.id, node_.id)
-            self.dists[row, col] = distance(node.center, node_.center)
+            self.dists[row, col] = self.distance_function(node, node_)
 
         # Symmetrize the distance matrix, based off the upper triangle.
         self.dists = mirror_upper(self.dists)
@@ -272,7 +273,7 @@ class Hierarchy():
 
         # If not, calculate it.
         if d == 0:
-            d = distance(n_i.center, n_j.center)
+            d = self.distance_function(n_i, n_j)
             i, j = triu_index(i, j)
             self.dists[i, j] = d
             self.dists = mirror_upper(self.dists)
@@ -299,7 +300,6 @@ class Hierarchy():
             # containing both n_i and n_j as children.
             n_k = self.create_node(ClusterNode, children=[n_i, n_j])
             self.root = n_k
-
 
     def fix_node(self, n):
         """
@@ -450,3 +450,4 @@ class Hierarchy():
         #pos=nx.graphviz_layout(G,prog='dot')
         #nx.draw(G, pos, arrows=False)
         #plt.savefig('output.png')
+
