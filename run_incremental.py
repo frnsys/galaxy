@@ -13,25 +13,39 @@ from eval.data import load_articles, build_vectors
 from core.ihac import IHAC
 from core.ihac.node import Node
 
+# Use idealized params (for IHAC w/ handpicked.json).
+# param_grid = ParameterGrid({
+#     'metric': ['cosine'],
+#     'linkage_method': ['average'],
+#     'threshold': [60.],
+#     'weights': [[21., 81., 41.]],
+#     'lower_limit_scale': [0.8],
+#     'upper_limit_scale': [1.15]
+# })
 
-def evaluate_average(datapath, ntrials=50):
+# pgs = [pg for pg in param_grid]
+
+
+# Use idealized params (for IHAC w/ wikinews_big.json)
+param_grid = ParameterGrid({
+    'metric': ['cosine'],
+    'linkage_method': ['average'],
+    'threshold': [55.],
+    'weights': [[21., 81., 41.]],
+    'lower_limit_scale': [0.8],
+    'upper_limit_scale': [1.15]
+})
+
+pgs = [pg for pg in param_grid]
+
+
+def evaluate_average(datapath, ntrials=30):
     articles, labels_true = load_articles(datapath)
 
     # Build the vectors if they do not exist.
     vecs_path = '/tmp/{0}.pickle'.format(datapath.replace('/', '.'))
     if not os.path.exists(vecs_path):
         build_vectors(articles, vecs_path)
-
-    # Use idealized params (for IHAC w/ handpicked.json).
-    param_grid = ParameterGrid({
-        'metric': ['cosine'],
-        'linkage_method': ['average'],
-        'threshold': [50.],
-        'weights': [[21., 81., 41.]],
-        'lower_limit_scale': [0.8],
-        'upper_limit_scale': [1.15]
-    })
-    pgs = [pg for pg in param_grid]
 
     results = {}
     for i in range(ntrials):
@@ -54,17 +68,6 @@ def evaluate(datapath):
     vecs_path = '/tmp/{0}.pickle'.format(datapath.replace('/', '.'))
     if not os.path.exists(vecs_path):
         build_vectors(articles, vecs_path)
-
-    # Use idealized params (for IHAC w/ handpicked.json).
-    param_grid = ParameterGrid({
-        'metric': ['cosine'],
-        'linkage_method': ['average'],
-        'threshold': [50.],
-        'weights': [[21., 81., 41.]],
-        'lower_limit_scale': [0.8],
-        'upper_limit_scale': [1.15]
-    })
-    pgs = [pg for pg in param_grid]
 
     result, n_clusters = cluster(vecs_path, pgs[0], labels_true)
     
@@ -122,8 +125,11 @@ def chunk(vecs, n_chunks=3):
     return chunks
 
 if __name__ == '__main__':
+    # datapath = 'eval/data/event/handpicked.json'
+    datapath = 'eval/data/event/wikinews_big.json'
+
     import sys
     if len(sys.argv) > 1 and sys.argv[1] == '-a':
-        evaluate_average('eval/data/event/handpicked.json')
+        evaluate_average(datapath)
     else:
-        evaluate('eval/data/event/handpicked.json')
+        evaluate(datapath)

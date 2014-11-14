@@ -80,6 +80,7 @@ class DocumentIndexGraph(nx.DiGraph):
         self.matching_phrases = {}
         self.phrase_frequencies = {}
         self.sims = None
+
     def index_document(self, plain_text):
         doc_id = len(self.indexed_docs)
         document = Document(doc_id, plain_text)
@@ -203,6 +204,14 @@ class DocumentIndexGraph(nx.DiGraph):
             self.sims[row, col] = sim_blend
         # print("(%d, %d) -> %.4f" % (doc_a_id, doc_b_id, sim_blend))
         return self.sims[row, col]
+
+    def get_distance(doc_a_id, doc_b_id):
+        """
+            Returns a distance based on
+            blended similarity between the given docs
+        """
+        return 1.0 / (1 + self.get_sim_blend(doc_a_id, doc_b_id))
+
 
 
 class DocumentTableEntry(object):
