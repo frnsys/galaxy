@@ -2,6 +2,7 @@ import networkx as nx
 import numpy as np
 from copy import copy
 import string
+import itertools
 
 from nltk.tokenize import sent_tokenize, word_tokenize
 from nltk.corpus import stopwords
@@ -10,6 +11,8 @@ from scipy.spatial.distance import cosine
 
 from core.vectorize import vectorize
 from core.ihac.util import mirror_upper, triu_index
+from eval.data import load_articles
+
 
 LEMMATIZER = WordNetLemmatizer()
 
@@ -205,12 +208,46 @@ class DocumentIndexGraph(nx.DiGraph):
         # print("(%d, %d) -> %.4f" % (doc_a_id, doc_b_id, sim_blend))
         return self.sims[row, col]
 
-    def get_distance(doc_a_id, doc_b_id):
+    def get_distance(self, doc_a_id, doc_b_id):
         """
             Returns a distance based on
             blended similarity between the given docs
         """
-        return 1.0 / (1 + self.get_sim_blend(doc_a_id, doc_b_id))
+        # TODO: figure out the best way of doing this,
+        # May be this can help:
+        # http://stats.stackexchange.com/questions/36152/converting-similarity-matrix-to-euclidean-distance-matrix)
+        
+        sim = self.get_sim_blend(doc_a_id, doc_b_id)
+        # return 1.0 / (1 + sim)
+
+        return 1.0 - sim
+
+    def get_distance_matrix(self, normalized=False):
+        n_docs = len(self.indexed_docs)
+        dists = -1.0 * np.ones((n_docs, n_docs))
+        pairs = itertools.product(range(n_docs),range(n_docs))
+        pairs = [(x, y) for (x, y) in pairs if x < y]
+
+        for (x, y) in pairs:
+            dists[x, y] = self.get_distance(x, y)
+
+        if normalized:
+            # TODO: distances could be normalized to be within [0, 1]
+            #  interval. We must figure out the maximum possible similarity
+            #  for that, or use the maximum seen (but we would loose incrementality)
+            raise NotImplementedError
+        
+        return dists
+
+    def get_similarity_matrix(self):    
+        # This ensures all sims are calculated 
+        # (sims calculation is lazy)
+        n_docs = len(self.indexed_docs)
+        pairs = itertools.product(range(n_docs),range(n_docs))
+        for (x, y) in pairs:
+            self.get_sim_blend(x, y)
+
+        return self.sims
 
 
 
@@ -260,14 +297,42 @@ class PhraseMatch(object):
         s_b = len(doc_b.sentences[self.positions[doc_b.id][0]].sentence)
         return (2.0 * l_i / (s_a + s_b)) ** gamma
 
-
-if __name__ == '__main__':
+def simple_demo():
+    """
+        Simple demonstration using the example
+        from the paper
+    """
     docs = ["river rafting. mild river rafting. river rafting trips",
             "wild river adventures. river rafting vacation plan",
             "fishin trips. fishing vacation plan. booking fishing trips. river fishing"]
-
+    
     dig = DocumentIndexGraph()
     for doc in docs:
         dig.index_document(doc)
 
     print([dig.get_sim_blend(a, b) for (a, b) in [(0, 1), (1, 2), (0, 2)]])
+
+
+def dist_matrix_demo():
+    """
+        Another demonstration using real
+        article data and generating
+        a distance matrix
+    """
+    N = 10
+    docs, true_labels = load_articles('../../eval/data/event/handpicked.json')
+    
+    docs = docs[:N]
+    docs = [d.text for d in docs]
+    dig = DocumentIndexGraph()
+    for doc in docs:
+        dig.index_document(doc)
+    
+    dists = dig.get_distance_matrix()
+
+    print(dists)
+    
+
+if __name__ == '__main__':
+    # simple_demo()
+    dist_matrix_demo()
