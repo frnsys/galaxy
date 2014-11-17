@@ -4,6 +4,7 @@ from itertools import chain
 import numpy as np
 
 from .util import split_dist_matrix
+from .visual import render_node
 
 class Node():
     # For determining the lower and upper limits.
@@ -12,6 +13,9 @@ class Node():
 
     def __init__(self):
         raise NotImplementedError
+
+    def display(self):
+        return render_node(self)
 
     @property
     def leaves(self):
@@ -23,12 +27,12 @@ class Node():
             return [ch for ch in self.parent.children if ch.id != self.id]
         return []
 
-    #def __repr__(self):
-        #return str('<Node {0} ({1})>'.format(self.center, self.id))
+    def __repr__(self):
+        return str(self.id)
 
     def forms_lower_dense_region(self, C):
         """
-        Let C be a homogenous cluster. 
+        Let C be a homogenous cluster.
         Given a new point A, let B be C's cluster member that is the nearest
         neighbor to A. Let d be the distance from A to B. A (and B)
         is said to form a lower dense region in C if d > U_L
@@ -43,7 +47,7 @@ class Node():
 
     def forms_higher_dense_region(self, C):
         """
-        Let C be a homogenous cluster. 
+        Let C be a homogenous cluster.
         Given a new point A, let B be C's cluster member that is the nearest
         neighbor to A. Let d be the distance from A to B. A (and B)
         is said to form a higher dense region in C if d < L_L
@@ -75,9 +79,6 @@ class LeafNode(Node):
     def is_root(self):
         return False
 
-    #def __repr__(self):
-        #return str('<LeafNode {0} ({1})>'.format(self.center, self.id))
-
 
 class ClusterNode(Node):
     def __init__(self, id, children, hierarchy):
@@ -105,8 +106,8 @@ class ClusterNode(Node):
 
         self._update_children_dists()
 
-    #def __repr__(self):
-        #return str('<ClusterNode {0}, ndm {1}, nds {2}, ll {3}, ul {4} ({5})>'.format(self.center, self.nearest_dists_mean, self.nearest_dists_std, self.lower_limit, self.upper_limit, self.id))
+    def __repr__(self):
+        return '({0}:{1:.2f})'.format(self.id, self.nearest_dists_mean)
 
     @property
     def leaves(self):

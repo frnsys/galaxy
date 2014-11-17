@@ -12,8 +12,10 @@ class IHAC():
         Incorporate vectors into the hierarchy.
         """
         if self.hierarchy is None:
-            self.hierarchy = Hierarchy(vecs[0])
-            vecs = vecs[1:]
+            if len(vecs) < 2:
+                raise Exception('You must initialize the model with at least two vectors.')
+            self.hierarchy = Hierarchy(*vecs[:2])
+            vecs = vecs[2:]
 
         for vec in vecs:
             self.hierarchy.incorporate(vec)

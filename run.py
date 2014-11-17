@@ -31,7 +31,7 @@ approaches = {
     'ihac': ParameterGrid({
         'metric': ['cosine'],
         'linkage_method': ['average'],
-        'threshold': [60.],
+        'threshold': np.arange(40., 100., 10.),
         'weights': [(21., 81., 41.)],
         'lower_limit_scale': [0.8],
         'upper_limit_scale': [1.15]
@@ -74,4 +74,4 @@ elif cmd == 'compare':
         print('Running the `{0}` algo...'.format(approach))
         results[approach] = evaluate(datapath, approach=approach, param_grid=param_grid)
 
-    print(results)
+    #print(results)

@@ -22,32 +22,26 @@ class Hierarchy():
     It has a master distance matrix which keeps track
     of the pairwise distances between all its nodes, and manages
     the assignment and recycling of ids across its nodes.
+    It is initialized with two vectors.
     """
-    def __init__(self, vector):
+    def __init__(self, vec_A, vec_B):
         """
-        A hierarchy must be initialized with one vector.
+        A hierarchy must be initialized with two vectors.
         """
         # For keeping track of ids which can be re-used.
         self.available_ids = []
 
         # Create the initial leaf node.
         # Initialize all the other properties.
-        node = LeafNode(id=0, vec=vector)
+        node_A = LeafNode(id=0, vec=vec_A)
         self.dists = np.array([[0.]], order='C')
-        self.leaves = [node]
-        self.nodes = [node]
+        self.leaves = [node_A]
+        self.nodes = [node_A]
+
+        node_B = self.create_node(LeafNode, vec=vec_B)
 
         # Create an initial cluster node as the root.
-        # We manually initialize some values since this is a special
-        # case cluster node with only one child.
-        self.root = self.create_node(ClusterNode, children=[node])
-        self.root.nearest_dists = [[0.]]
-        self.root.nearest_dists_mean = 0.0
-        self.root.nearest_dists_std  = 1.0
-        # We set the std to be > 0 so that there's some space for non-identical nodes
-        # to join this cluster. Otherwise, only identical nodes would be able to join.
-        # This value is kind of arbitrary...there's probably some way of determining
-        # a good starting value.
+        self.root = self.create_node(ClusterNode, children=[node_A, node_B])
 
     def incorporate(self, vec):
         """
@@ -197,7 +191,7 @@ class Hierarchy():
             dm = np.hstack([dm, np.zeros((dm.shape[0], 1))])
             self.dists = np.vstack([dm, np.zeros(dm.shape[1])])
 
-        logging.debug('Creating node {0}...'.format(id))
+        logging.debug('Creating {0} {1}...'.format(node_cls.__name__, id))
 
         if node_cls == ClusterNode: init_args['hierarchy'] = self
         init_args['id'] = id
@@ -337,7 +331,7 @@ class Hierarchy():
         n_p.remove_child(n_j)
         n_i.add_child(n_j)
 
-        # It's possible that n_p now only has one child, 
+        # It's possible that n_p now only has one child,
         # in which case it must be replaced with its only child.
         self.fix_node(n_p)
 
