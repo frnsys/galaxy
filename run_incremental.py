@@ -4,6 +4,7 @@ import pickle
 
 import numpy as np
 from scipy.sparse import vstack, lil_matrix
+from scipy import average
 from sklearn.grid_search import ParameterGrid
 
 from eval import weight_vectors, score
@@ -11,6 +12,53 @@ from eval.data import load_articles, build_vectors
 
 from core.ihac import IHAC
 from core.ihac.node import Node
+
+# Use idealized params (for IHAC w/ handpicked.json).
+# param_grid = ParameterGrid({
+#     'metric': ['cosine'],
+#     'linkage_method': ['average'],
+#     'threshold': [60.],
+#     'weights': [[21., 81., 41.]],
+#     'lower_limit_scale': [0.8],
+#     'upper_limit_scale': [1.15]
+# })
+
+# pgs = [pg for pg in param_grid]
+
+
+# Use idealized params (for IHAC w/ wikinews_big.json)
+param_grid = ParameterGrid({
+    'metric': ['cosine'],
+    'linkage_method': ['average'],
+    'threshold': [55.],
+    'weights': [[21., 81., 41.]],
+    'lower_limit_scale': [0.8],
+    'upper_limit_scale': [1.15]
+})
+
+pgs = [pg for pg in param_grid]
+
+
+def evaluate_average(datapath, ntrials=30):
+    articles, labels_true = load_articles(datapath)
+
+    # Build the vectors if they do not exist.
+    vecs_path = '/tmp/{0}.pickle'.format(datapath.replace('/', '.'))
+    if not os.path.exists(vecs_path):
+        build_vectors(articles, vecs_path)
+
+    results = {}
+    for i in range(ntrials):
+        result, n_clusters = cluster(vecs_path, pgs[0], labels_true)
+        for metric in result:
+            results.setdefault(metric, [])
+            results[metric].append(result[metric])
+        print(n_clusters)
+
+    for metric in results:
+        results[metric] = average(results[metric])
+    
+    print(sorted(results.items()))
 
 
 def evaluate(datapath):
@@ -21,19 +69,10 @@ def evaluate(datapath):
     if not os.path.exists(vecs_path):
         build_vectors(articles, vecs_path)
 
-    # Use idealized params (for IHAC w/ handpicked.json).
-    param_grid = ParameterGrid({
-        'metric': ['cosine'],
-        'linkage_method': ['average'],
-        'threshold': [60.],
-        'weights': [[21., 81., 41.]],
-        'lower_limit_scale': [0.8],
-        'upper_limit_scale': [1.15]
-    })
-    pgs = [pg for pg in param_grid]
-
-    result = cluster(vecs_path, pgs[0], labels_true)
-    print(result)
+    result, n_clusters = cluster(vecs_path, pgs[0], labels_true)
+    
+    print(n_clusters)
+    print(sorted(result.items()))
 
 
 def cluster(filepath, pg, labels_true):
@@ -53,7 +92,7 @@ def cluster(filepath, pg, labels_true):
 
     clusters, labels_pred = model.clusters(distance_threshold=pg['threshold'], with_labels=True)
 
-    return score(labels_true, labels_pred)
+    return score(labels_true, labels_pred), len(set(labels_pred))
 
 
 def shuffle(vecs, labels_true):
@@ -78,7 +117,7 @@ def chunk(vecs, n_chunks=3):
             v = vstack(vecs)
 
         else:
-            end = random.randint(1, size - n_chunks - i + 1)
+            end = random.randint(1, size - n_chunks - i + 2)
             v = vstack(vecs[:end])
             vecs = vecs[end:]
 
@@ -86,4 +125,11 @@ def chunk(vecs, n_chunks=3):
     return chunks
 
 if __name__ == '__main__':
-    evaluate('eval/data/event/handpicked.json')
+    # datapath = 'eval/data/event/handpicked.json'
+    datapath = 'eval/data/event/wikinews_big.json'
+
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] == '-a':
+        evaluate_average(datapath)
+    else:
+        evaluate(datapath)
