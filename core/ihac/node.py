@@ -1,10 +1,11 @@
 import logging
+from datetime import datetime
 from itertools import chain
 
 import numpy as np
 
 from .util import split_dist_matrix
-from .visual import render_node
+from .visual import render_node_vertical, render_node_horizontal
 
 class Node():
     # For determining the lower and upper limits.
@@ -14,8 +15,11 @@ class Node():
     def __init__(self):
         raise NotImplementedError
 
-    def display(self):
-        return render_node(self)
+    def display(self, vertical=True):
+        if vertical:
+            return render_node_vertical(self)
+        else:
+            return render_node_horizontal(self)
 
     @property
     def leaves(self):
@@ -66,6 +70,13 @@ class LeafNode(Node):
         self.id = id
         self.center = vec
         self.parent = None
+
+        # We want to keep track of what order leaf nodes were
+        # created at so we know in what order to return labels.
+        # Since ids can be recycled, they should not be relied on.
+        # A later node might have a lower id number if it was recycled from a previously destroyed node.
+        # Instead we will use timestamps.
+        self.uuid = datetime.utcnow()
 
     @property
     def leaves(self):
@@ -131,7 +142,7 @@ class ClusterNode(Node):
         return self.mdm[rows, cols]
 
     def add_child(self, node):
-        logging.debug('Adding {0} to {1}...'.format(node.id, self.id))
+        logging.debug('Inserting {0} to {1}...'.format(node.id, self.id))
 
         # As a precaution, check if the child-to-be already has a parent,
         # and remove them from it if they do.
@@ -194,6 +205,9 @@ class ClusterNode(Node):
         nodes_to_create = []
         for c in [c_i, c_j]:
             children = [self.children[i] for i in c]
+
+            # If this cluster has only one child,
+            # return the child instead.
             if len(children) == 1:
                 n = children[0]
                 self.hierarchy.update_distances(n)
@@ -285,7 +299,10 @@ class ClusterNode(Node):
     @property
     def lower_limit(self):
         """
-        The lower limit, which just needs to be some function of
+        The lower limit is the minimum nearest distance for this cluster.
+        Any nodes which have a nearest distance smaller than this form a more dense region (i.e. they are too close together).
+
+        The lower limit just needs to be some function of
         the nearest distance mean and the nearest distance standard deviation.
         """
         return Node.lower_limit_scale * (self.nearest_dists_mean - self.nearest_dists_std)
@@ -293,7 +310,10 @@ class ClusterNode(Node):
     @property
     def upper_limit(self):
         """
-        The upper limit, which just needs to be some function of
+        The upper limit is the maximum nearest distance for this cluster.
+        Any nodes which have a nearest distance greater than this form a less dense region (i.e. they are too far apart).
+
+        The upper limit just needs to be some function of
         the nearest distance mean and the nearest distance standard deviation.
         """
         return Node.upper_limit_scale * (self.nearest_dists_mean + self.nearest_dists_std)

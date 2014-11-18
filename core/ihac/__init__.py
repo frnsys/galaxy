@@ -27,12 +27,13 @@ class IHAC():
         clusters = self.hierarchy.fcluster(distance_threshold)
 
         # Return labels in the order that the vectors were inputted,
-        # which is the same as the order of nodes by their ids.
+        # which is the same as the order of nodes by their uuids,
+        # which are assigned according to when they were created.
         if with_labels:
             label_map = {}
             for i, clus in enumerate(clusters):
                 for leaf in clus:
-                    label_map[leaf.id] = i
+                    label_map[leaf.uuid] = i
             labels = [label_map[id] for id in sorted(label_map)]
             return clusters, labels
         return clusters

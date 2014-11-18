@@ -3,7 +3,7 @@ import logging
 from itertools import chain
 
 import numpy as np
-from scipy.spatial.distance import euclidean
+from scipy.spatial.distance import euclidean, cosine
 
 # For visualization.
 import matplotlib.pyplot as plt
@@ -13,6 +13,10 @@ import subprocess as sp
 from .node import LeafNode, ClusterNode
 from .util import mirror_upper, triu_index
 
+dist_funcs = {
+    'euclidean': euclidean,
+    'cosine':    cosine
+}
 
 class Hierarchy():
     """
@@ -21,13 +25,21 @@ class Hierarchy():
     of the pairwise distances between all its nodes, and manages
     the assignment and recycling of ids across its nodes.
     It is initialized with two vectors.
+
+    A few notes:
+    - a cluster should never have less than two children. Any restructuring operation
+        which could potentially lead to a cluster with only one or less children needs
+        to fix the node afterwards.
     """
-    def __init__(self, vec_A, vec_B):
+    def __init__(self, vec_A, vec_B, distance_method='euclidean'):
         """
         A hierarchy must be initialized with two vectors.
         """
         # For keeping track of ids which can be re-used.
         self.available_ids = []
+
+        # So we know how distances are calculated.
+        self.distance_method = distance_method
 
         # Create the initial leaf node.
         # Initialize all the other properties.
@@ -40,6 +52,9 @@ class Hierarchy():
 
         # Create an initial cluster node as the root.
         self.root = self.create_node(ClusterNode, children=[node_A, node_B])
+
+    def display(self, vertical=True):
+        return self.root.display(vertical)
 
     def incorporate(self, vec):
         """
@@ -55,41 +70,49 @@ class Hierarchy():
         # If the distance d is w/in the limits of the candidate parent n_cp,
         # just insert n there.
         while n_cp:
+            # Note: after the first iteration, n_c could be a leaf *or* a cluster node.
+
             if d >= n_cp.lower_limit and d <= n_cp.upper_limit:
                 n_cp.add_child(n)
                 break
 
             # Otherwise, n forms a higher dense region with n_cp
             # (i.e. if d > n_cp.lower_limit)...
-            elif d <= n_cp.lower_limit:
-                # And if n forms a lower dense region with at least one of n_cp's children...
-                for ch in [ch for ch in n_cp.children if type(ch) is ClusterNode]:
-                    if n.forms_lower_dense_region(ch):
-                        self.ins_hierarchy(n_c, n)
-                        break
+            elif d < n_cp.lower_limit:
+                self.ins_hierarchy(n_c, n)
+                break
+
+            # Or if n forms a lower dense region with at least one of n_cp's children...
+            # I think this is redundant.
+            for ch in [ch for ch in n_cp.children if type(ch) is ClusterNode]:
+                if n.forms_lower_dense_region(ch):
+                    self.ins_hierarchy(n_c, n)
+                    break
 
             # If the node has still not been incorporated,
             # move up the hierarchy to the next cluster node.
             # If n_cp.parent is None, we've reached the top of the hierarchy and this loop stops.
             n_cp = n_cp.parent
             if n_cp is not None:
-                n_c, d = n_cp.get_nearest_child(n, clusters_only=True)
+                # don't think this has to only be clusters.
+                #n_c, d = n_cp.get_nearest_child(n, clusters_only=True)
+                n_c, d = n_cp.get_nearest_child(n)
 
         # If the node has still not been incorporated,
         # replace the root with a new cluster node containing both n_cp and n.
         if n.parent is None:
             self.ins_hierarchy(self.root, n)
-        else:
-            self.restructure(n.parent)
+
+        self.restructure(n.parent)
 
         self.leaves.append(n)
         return n
 
-    def restructure(self, n_h):
+    def restructure(self, n_i):
         """
         Algorithm Hierarchy Restructuring:
 
-        Starting from the host node n_h, we traverse ancestors doing
+        Starting from the host node n, we traverse ancestors doing
         the following:
 
         1. Recover the siblings of the node that are misplaced.
@@ -99,14 +122,14 @@ class Hierarchy():
 
         2. Maintain the homogeneity of crntNode.
         """
-        while n_h:
-            if not n_h.is_root:
-                misplaced = [s for s in n_h.siblings if not s.forms_lower_dense_region(n_h)]
-                for n in misplaced:
-                    self.demote(n_h, n)
+        while n_i:
+            if not n_i.is_root:
+                misplaced = [s for s in n_i.siblings if not s.forms_lower_dense_region(n_i)]
+                for n_j in misplaced:
+                    self.demote(n_i, n_j)
 
-            self.repair_homogeneity(n_h)
-            n_h = n_h.parent
+            self.repair_homogeneity(n_i)
+            n_i = n_i.parent
 
     def repair_homogeneity(self, n):
         """
@@ -155,7 +178,8 @@ class Hierarchy():
         The assumption is that node n is not (yet) among the hierarchy's leaves.
         """
         # Build a view of the master distance matrix showing only
-        # n's distances from the leaves of this hierarchy.
+        # n's distances from the leaves of this hierarchy,
+        # since we're not looking at cluster nodes.
         cols = [l.id for l in self.leaves]
         dist_mat = self.dists[[[n.id]], cols][0]
         i = np.argmin(dist_mat)
@@ -167,6 +191,10 @@ class Hierarchy():
         in order to properly manage node ids.
 
         The id must correspond to the node's index in the distance matrix.
+
+        This creates a node but does NOT insert into the hierarchy,
+        though it is tracked as one of the hierarchy's nodes (it is added to self.nodes).
+        If you want to insert a node into the hierarchy, use the `incorporate` method.
         """
 
         # Reuse an id if we have one.
@@ -180,6 +208,7 @@ class Hierarchy():
 
         # Otherwise we need to expand the distance matrix and use a new id.
         else:
+            # The next id is the length of dimension of the distance matrix.
             id = self.dists.shape[0]
 
             # Resize the distance matrix.
@@ -210,9 +239,15 @@ class Hierarchy():
 
         i = n.id
 
-        #self.nodes.remove(n)
+        # uncommenting this but can't remember why it was commented out...
+        self.nodes.remove(n)
+
+        if type(n) is LeafNode:
+            self.leaves.remove(n)
 
         # Take it out of the hierarchy.
+        # This only happens for the first node `delete_node` is called on,
+        # since children nodes are disconnected from their parent (see the note below).
         if n.parent:
             n.parent.remove_child(n)
             n.parent = None
@@ -236,8 +271,7 @@ class Hierarchy():
             self.delete_node(ch)
 
     def distance_function(self, a, b):
-        # TODO: pass distance function as parameter in init
-        return euclidean(a.center, b.center)
+        return dist_funcs[self.distance_method](a.center, b.center)
 
     def update_distances(self, node):
         """
@@ -276,10 +310,13 @@ class Hierarchy():
 
     def ins_hierarchy(self, n_i, n_j):
         """
+        This adds a node n_j which is not yet in the hierarchy by creating a new cluster
+        node, n_k, which has n_j and n_i as children.
+
         The difference between merge and ins_hierarchy is that ins_hierarchy incorporates
         a node that is new (n_j) to the hierarchy.
         """
-        logging.debug('Inserting hierarchy...')
+        logging.debug('Inserting {0} into the hierarchy alongside {1}...'.format(n_j.id, n_i.id))
 
         if not n_i.is_root:
             # Remove n_i from its parent and replace it with a new cluster node
@@ -299,12 +336,13 @@ class Hierarchy():
         """
         This replaces a ClusterNode with its child if that child is an only child.
         """
-        logging.debug('Fixing node {0}...'.format(n.id))
-
         if len(n.children) == 1:
+            logging.debug('Fixing node {0}...'.format(n.id))
+
             n_c = n.children[0]
 
             if not n.is_root:
+                # Replace the node n with node n_c.
                 n_p = n.parent
                 n_p.remove_child(n)
                 n_p.add_child(n_c)
@@ -323,7 +361,7 @@ class Hierarchy():
         """
         Demote n_j to a child of n_i.
 
-        n_j must be a cluster node.
+        n_i must be a cluster node.
         """
         logging.debug('Demoting {0} to under {1}...'.format(n_j.id, n_i.id))
 
@@ -351,9 +389,13 @@ class Hierarchy():
         n_k = self.create_node(ClusterNode, children=[n_i, n_j])
         n_p.add_child(n_k)
 
+        # If n_i and n_j were n_p's only children, then it has only one child (n_k),
+        # in which case it must be replaced by n_k.
+        self.fix_node(n_p)
+
     def split(self, n):
         """
-        Split cluster node n by its largest nearest distance into two nodes,
+        Split cluster node n by its largest nearest distance into two cluster nodes,
         and replace it with those new nodes.
         """
         logging.debug('Splitting {0}...'.format(n.id))
@@ -410,14 +452,16 @@ class Hierarchy():
             # Otherwise, keep going down the branch.
             yield from self._snip(n.children, distance_threshold)
 
-
     @property
     def avg_density(self):
         level_averages = []
 
         current_level = [self.root]
         while current_level:
+            # Get the average density for this level.
             level_averages.append(np.mean([n.nearest_dists_mean for n in current_level]))
+
+            # Build out the next level.
             children = list(chain.from_iterable([n.children for n in current_level]))
             current_level = [ch for ch in children if type(ch) is ClusterNode]
         return np.mean(level_averages)
@@ -439,9 +483,3 @@ class Hierarchy():
         nx.write_dot(G,'/tmp/hierarchy.dot')
         with open(savepath, 'wb') as out:
             sp.call(['dot', '-Tpng', '/tmp/hierarchy.dot'], stdout=out)
-
-        #plt.title('output')
-        #pos=nx.graphviz_layout(G,prog='dot')
-        #nx.draw(G, pos, arrows=False)
-        #plt.savefig('output.png')
-

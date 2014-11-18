@@ -1,5 +1,6 @@
 import itertools
 import click
+from io import StringIO
 
 # http://stackoverflow.com/a/17462524/1097920
 def block_width(block):
@@ -38,7 +39,7 @@ def stack_str_blocks(blocks):
     return ''.join(builder[:-1])
 
 
-def render_node(node):
+def render_node_vertical(node):
     if not node.children:
         return str(node)
 
@@ -72,3 +73,32 @@ def render_node(node):
     return name_str + '\n' + brace + '\n' + below
 
 
+# From https://pypi.python.org/pypi/asciitree/0.2
+def render_node_horizontal(node,
+              child_iter=lambda n: n.children,
+              text_str=lambda n: str(n)):
+    return draw_tree(node, '', child_iter, text_str)
+
+def draw_tree(node, prefix, child_iter, text_str):
+    buf = StringIO()
+
+    children = list(child_iter(node))
+
+    # check if root node
+    if prefix:
+        buf.write(prefix[:-3])
+        buf.write('  +--')
+    buf.write(text_str(node))
+    buf.write('\n')
+
+    for index, child in enumerate(children):
+        if index+1 == len(children):
+            sub_prefix = prefix + '   '
+        else:
+            sub_prefix = prefix + '  |'
+
+        buf.write(
+            draw_tree(child, sub_prefix, child_iter, text_str)
+        )
+
+    return buf.getvalue()
