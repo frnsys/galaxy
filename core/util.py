@@ -63,22 +63,3 @@ def process(existing, new):
     print('Create these clusters: {0}'.format(to_create))
     print('Delete these clusters: {0}'.format(to_delete))
     return to_update, to_create, to_delete
-
-
-# temp, for reference
-def process_example():
-    # event_map = {event_id => [article_ids]}
-    event_map = {
-        1: [1,2,3,4],
-        2: [5,6],
-        3: [9]
-    }
-
-    # new_clusters = [ [article_ids] ]
-    new_clusters = [
-        [9,5,3,4,2,1],
-        [6,7],
-        [8]
-    ]
-
-    process(event_map, new_clusters)

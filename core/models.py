@@ -22,7 +22,8 @@ class Article():
     def concept_vectors(self):
         # Calculating these on the fly and not
         # caching the results because caching eats up a lot of memory.
-        concept_doc = ' '.join(self.concepts)
+        # '||' is the delimiter which the concept tokenizer uses.
+        concept_doc = '||'.join(self.concepts)
         return concepts.vectorize(concept_doc)
 
     @property

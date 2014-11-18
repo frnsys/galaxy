@@ -11,6 +11,7 @@ from dateutil.parser import parse
 from core.models import Article
 from eval.util import progress
 
+
 def load_articles(datapath, with_labels=True, as_incremental=False):
     print('Loading articles from {0}...'.format(datapath))
     with open(datapath, 'r') as file:
@@ -33,7 +34,7 @@ def load_articles(datapath, with_labels=True, as_incremental=False):
     return articles
 
 
-def build_vectors(articles, savepath):
+def build_vectors(articles, savepath=None):
     bow_vecs, concept_vecs, pub_vecs, = [], [], []
 
     for a in progress(articles, 'Building article vectors...'):
@@ -49,8 +50,11 @@ def build_vectors(articles, savepath):
     vecs = hstack([pub_vecs, bow_vecs, concept_vecs])
     print('Using {0} features.'.format(vecs.shape[1]))
 
-    with open(savepath, 'wb') as f:
-        pickle.dump(vecs, f)
+    if savepath:
+        with open(savepath, 'wb') as f:
+            pickle.dump(vecs, f)
+
+    return vecs
 
 
 def process_labeled_articles(data):
@@ -78,20 +82,3 @@ def process_article(a):
             a[key] = parse(a[key]['$date'])
 
     return Article(**a)
-
-
-def split_list(objs, n_groups=3):
-    """
-    Takes a list of objs and splits them into randomly-sized groups.
-    This is used to simulate how articles come in different groups.
-    """
-    shuffled = sorted(objs, key=lambda k: random())
-
-    sets = []
-    for i in range(n_groups):
-        size = len(shuffled)
-        end = randint(1, (size - (n_groups - i) + 1))
-
-        yield shuffled[:end]
-
-        shuffled = shuffled[end:]

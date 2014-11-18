@@ -80,7 +80,7 @@ def tokenize(doc, **kwargs):
     stops = set(list(string.punctuation) + stopwords.words('english'))
 
     # Tokenize
-    for sentence in sent_tokenize(doc):
+    for sentence in sent_tokenize(doc): 
         for token in word_tokenize(sentence):
 
             # Ignore punctuation and stopwords
