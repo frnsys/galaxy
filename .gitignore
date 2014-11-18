@@ -8,7 +8,6 @@ doc/_build
 doc/_static
 doc/_templates
 *.log
-conf.py
 *.rdb
 .webassets-cache
 bower/

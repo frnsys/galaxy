@@ -10,7 +10,7 @@ from sklearn.grid_search import ParameterGrid
 
 from core.cluster import hac, ihac, digbc, digshc
 from core.util import labels_to_lists
-from eval.util import progress
+from eval.util import progress, file_logger, TableGenerator
 from eval.report import build_report
 from eval.data import load_articles, build_vectors
 from eval.parallel import parallelize
@@ -27,7 +27,11 @@ approaches = {
 }
 
 def evaluate(datapath, approach='digshc', param_grid=None):
+    logger = file_logger('eval')
+    logger.info("\n\nEvaluating [{0}] on [{1}] with approach [{2}].".format(datapath, datetime.utcnow(), approach))
+
     articles, labels_true = load_articles(datapath)
+    articles_ = [Member(a.id, a.title) for a in articles]
 
     if 'dig' in approach:
         # articles = [a.text for a in articles]
@@ -66,15 +70,26 @@ def evaluate(datapath, approach='digshc', param_grid=None):
     import time
     start_time = time.time()
 
+    # For nicely formatted results in the log.
+    tg = TableGenerator(list(list(param_grid)[0].keys()) + METRICS)
+    logger.info(tg.build_headers())
+
     results = []
     for pg in progress(param_grid, 'Running {0} parameter combos...'.format(len(param_grid))):
         result = cluster(vecs_path, pg, approach, articles)
+
+        # Score the result.
+        result['score'] = score(labels_true, result['labels'])
+        result['clusters'] = labels_to_lists(articles_, result['labels'])
+
+        logger.info(tg.build_row(dict(list(result['params'].items()) + list(result['score'].items()))))
+
         results.append(result)
 
     elapsed_time = time.time() - start_time
     print('Clustered in {0}'.format(elapsed_time))
 
-    results, avgs = score_results(results, labels_true, articles)
+    avgs = average_results(results)
     bests, lines = calculate_bests(results)
     print('Average scores: {0}'.format(avgs))
     lines += '\n\n{0}'.format(avgs)
@@ -107,7 +122,7 @@ def calculate_bests(results):
         srtd = sorted(results, key=lambda x:x['score'][metric], reverse=True)
 
         lines.append('======\n{0}\n======'.format(metric))
-        lines += ['{0}, scored {1} [{2}]'.format(res['params'], res['score'][metric], metric) for res in srtd]
+        lines += ['{0}, scored {1} [{2}]'.format(res['params'], res['score'][metric], metric) for res in srtd[:20]]
         lines.append('\n\n============================\n\n')
 
         bests[metric] = srtd[0]
@@ -152,22 +167,16 @@ def cluster(filepath, pg, approach, articles):
     }
 
 
-def score_results(results, labels_true, articles):
-    articles_ = [Member(a.id, a.title) for a in articles]
-
+def average_results(results):
     avgs = {metric: [] for metric in METRICS}
     for result in results:
-        result['score'] = score(labels_true, result['labels'])
-        result['clusters'] = labels_to_lists(articles_, result['labels'])
-
         for metric, scr in result['score'].items():
             avgs[metric].append(scr)
 
     for metric, scrs in avgs.items():
         avgs[metric] = sum(scrs)/len(scrs)
 
-    return results, avgs
-
+    return avgs
 
 def weight_vectors(v, weights):
     # Convert to a scipy.sparse.lil_matrix because it is subscriptable.

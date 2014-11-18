@@ -2,10 +2,6 @@ import sys
 import json
 from itertools import permutations
 
-#import logging
-#logging.basicConfig(level=logging.DEBUG, format='%(name)s ~ %(message)s')
-
-
 from core.vectorize import train
 from core import concepts
 from eval import evaluate, test
@@ -38,6 +34,13 @@ approaches = {
         'lower_limit_scale': [0.8],
         'upper_limit_scale': [1.15]
     }),
+    #'ihac': ParameterGrid({
+        #'metric': ['euclidean'],
+        #'threshold': np.arange(40., 100., 10.),
+        #'weights': list( permutations(np.arange(1., 82., 10.), 3) ),
+        #'lower_limit_scale': np.arange(0.6, 0.9, 0.1),
+        #'upper_limit_scale': np.arange(1.4, 1.6, 0.05)
+    #}),
     #'digbc': ParameterGrid({
         #'threshold': np.arange(0.00295, 0.0100, 0.00005)
     #})

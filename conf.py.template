@@ -1,4 +1,0 @@
-APP = {
-    'PIPELINE_PATH': '/home/estudiamos/Proyectos/clustering/argos_cluster/pipelines',
-    'KNOWLEDGE_HOST': ''
-}

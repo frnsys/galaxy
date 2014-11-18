@@ -26,13 +26,12 @@ from core.ihac.node import Node
 # pgs = [pg for pg in param_grid]
 
 
-# Use idealized params (for IHAC w/ wikinews_big.json)
 param_grid = ParameterGrid({
     'metric': ['euclidean'],
     'threshold': [60.],
-    'weights': [[21., 81., 41.]],
-    'lower_limit_scale': [0.8],
-    'upper_limit_scale': [1.15]
+    'weights': [[41., 81., 21.]],
+    'lower_limit_scale': [0.9],
+    'upper_limit_scale': [1.5]
 })
 
 pgs = [pg for pg in param_grid]

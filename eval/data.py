@@ -82,20 +82,3 @@ def process_article(a):
             a[key] = parse(a[key]['$date'])
 
     return Article(**a)
-
-
-def split_list(objs, n_groups=3):
-    """
-    Takes a list of objs and splits them into randomly-sized groups.
-    This is used to simulate how articles come in different groups.
-    """
-    shuffled = sorted(objs, key=lambda k: random())
-
-    sets = []
-    for i in range(n_groups):
-        size = len(shuffled)
-        end = randint(1, (size - (n_groups - i) + 1))
-
-        yield shuffled[:end]
-
-        shuffled = shuffled[end:]
