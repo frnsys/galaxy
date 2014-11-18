@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime
 from itertools import chain
+import traceback
 
 import numpy as np
 
@@ -97,8 +98,6 @@ class ClusterNode(Node):
             A new cluster node is created by passing
             a list of children.
         """
-        logging.debug('Creating new cluster node {0}...'.format(id))
-
         self.id = id
         self.children = children
         self.parent = None
@@ -142,7 +141,7 @@ class ClusterNode(Node):
         return self.mdm[rows, cols]
 
     def add_child(self, node):
-        logging.debug('Inserting {0} to {1}...'.format(node.id, self.id))
+        logging.debug('[ADD_CHILD]\t Inserting {0} to {1}...'.format(node.id, self.id))
 
         # As a precaution, check if the child-to-be already has a parent,
         # and remove them from it if they do.
@@ -162,7 +161,7 @@ class ClusterNode(Node):
         self._update_children_dists()
 
     def remove_child(self, child):
-        logging.debug('Removing {0} from {1}...'.format(child.id, self.id))
+        logging.debug('[REMOVE_CHILD]\t Removing {0} from {1}...'.format(child.id, self.id))
 
         child.parent = None
 
@@ -184,7 +183,6 @@ class ClusterNode(Node):
         # This node will eventually get destroyed by the managing hierarchy.
         else:
             self.center = np.array([0])
-            #self.hierarchy.delete_node(self)
 
     def split_children(self):
         """
@@ -196,8 +194,6 @@ class ClusterNode(Node):
         We split this MST by removing the edge connecting nodes m_i and m_j,
         where m_i and m_j's edge has the greatest weight in the MST.
         """
-        logging.debug('Splitting children of {0}'.format(self.id))
-
         # The children dist matrix is a copy, so we can overwrite it.
         c_i, c_j = split_dist_matrix(self.cdm, overwrite=True)
 
@@ -261,8 +257,6 @@ class ClusterNode(Node):
         """
         The pair of children having the shortest nearest distance.
         """
-        logging.debug('Getting nearest children for {0}...'.format(self.id))
-
         dist_mat = self.cdm
 
         # Fill the diagonal with nan. Otherwise, they are all 0,

@@ -31,7 +31,7 @@ class Hierarchy():
         which could potentially lead to a cluster with only one or less children needs
         to fix the node afterwards.
     """
-    def __init__(self, vec_A, vec_B, distance_method='euclidean'):
+    def __init__(self, vec_A, vec_B, metric='euclidean'):
         """
         A hierarchy must be initialized with two vectors.
         """
@@ -39,7 +39,7 @@ class Hierarchy():
         self.available_ids = []
 
         # So we know how distances are calculated.
-        self.distance_method = distance_method
+        self.metric = metric
 
         # Create the initial leaf node.
         # Initialize all the other properties.
@@ -83,10 +83,11 @@ class Hierarchy():
                 break
 
             # Or if n forms a lower dense region with at least one of n_cp's children...
-            # I think this is redundant.
+            # I think this only makes sense on the first interation, where n_c is a leaf,
+            # so we also check cluster nodes. I'm not even sure that's true - this might be redundant.
             for ch in [ch for ch in n_cp.children if type(ch) is ClusterNode]:
                 if n.forms_lower_dense_region(ch):
-                    self.ins_hierarchy(n_c, n)
+                    self.ins_hierarchy(ch, n)
                     break
 
             # If the node has still not been incorporated,
@@ -122,6 +123,7 @@ class Hierarchy():
 
         2. Maintain the homogeneity of crntNode.
         """
+        logging.debug('[RESTRUCTURE]\t Restructuring {0}'.format(n_i.id))
         while n_i:
             if not n_i.is_root:
                 misplaced = [s for s in n_i.siblings if not s.forms_lower_dense_region(n_i)]
@@ -152,6 +154,7 @@ class Hierarchy():
             11. Call Homogeneity Maintenance(n_j).
         """
 
+        logging.debug('[REPAIR]\t\t Repairing homogeneity for {0}'.format(n.id))
         while len(n.children) > 2:
             n_i, n_j, d = n.nearest_children
 
@@ -218,7 +221,7 @@ class Hierarchy():
             dm = np.hstack([dm, np.zeros((dm.shape[0], 1))])
             self.dists = np.vstack([dm, np.zeros(dm.shape[1])])
 
-        logging.debug('Creating {0} {1}...'.format(node_cls.__name__, id))
+        logging.debug('[CREATE]\t\t Creating {0} {1}...'.format(node_cls.__name__, id))
 
         if node_cls == ClusterNode: init_args['hierarchy'] = self
         init_args['id'] = id
@@ -235,11 +238,9 @@ class Hierarchy():
 
         This will delete ALL nodes in the subtree of n.
         """
-        logging.debug('Deleting node {0}...'.format(n.id))
+        logging.debug('[DELETE]\t\t Deleting node {0}...'.format(n.id))
 
         i = n.id
-
-        # uncommenting this but can't remember why it was commented out...
         self.nodes.remove(n)
 
         if type(n) is LeafNode:
@@ -271,13 +272,18 @@ class Hierarchy():
             self.delete_node(ch)
 
     def distance_function(self, a, b):
-        return dist_funcs[self.distance_method](a.center, b.center)
+        return dist_funcs[self.metric](a.center, b.center)
 
     def update_distances(self, node):
         """
         Update all distances against a node.
         """
         for node_ in [n for n in self.nodes if n.id is not None]:
+            # It's possible for cluster nodes without children to be encountered.
+            # This is (should be) because they have not yet been deleted,
+            # but the hierarchy does delete them eventually.
+            if type(node_) is ClusterNode and node_.children == []:
+                continue
             row, col = triu_index(node.id, node_.id)
             self.dists[row, col] = self.distance_function(node, node_)
 
@@ -316,7 +322,7 @@ class Hierarchy():
         The difference between merge and ins_hierarchy is that ins_hierarchy incorporates
         a node that is new (n_j) to the hierarchy.
         """
-        logging.debug('Inserting {0} into the hierarchy alongside {1}...'.format(n_j.id, n_i.id))
+        logging.debug('[INS_HIERARCHY]\t Inserting {0} into the hierarchy alongside {1}...'.format(n_j.id, n_i.id))
 
         if not n_i.is_root:
             # Remove n_i from its parent and replace it with a new cluster node
@@ -337,7 +343,7 @@ class Hierarchy():
         This replaces a ClusterNode with its child if that child is an only child.
         """
         if len(n.children) == 1:
-            logging.debug('Fixing node {0}...'.format(n.id))
+            logging.debug('[FIX]\t\t Fixing node {0}...'.format(n.id))
 
             n_c = n.children[0]
 
@@ -363,7 +369,7 @@ class Hierarchy():
 
         n_i must be a cluster node.
         """
-        logging.debug('Demoting {0} to under {1}...'.format(n_j.id, n_i.id))
+        logging.debug('[DEMOTE]\t\t Demoting {0} to under {1}...'.format(n_j.id, n_i.id))
 
         n_p = n_i.parent
         n_p.remove_child(n_j)
@@ -381,7 +387,7 @@ class Hierarchy():
         The difference between merge and ins_hierarchy is that merge works
         on nodes _already_ in the hierarchy.
         """
-        logging.debug('Merging {0} and {1}...'.format(n_i.id, n_j.id))
+        logging.debug('[MERGE]\t\t Merging {0} and {1}...'.format(n_i.id, n_j.id))
 
         n_p = n_i.parent
         n_p.remove_child(n_i)
@@ -398,9 +404,9 @@ class Hierarchy():
         Split cluster node n by its largest nearest distance into two cluster nodes,
         and replace it with those new nodes.
         """
-        logging.debug('Splitting {0}...'.format(n.id))
-
         n_i, n_j = n.split_children()
+
+        logging.debug('[SPLIT]\t\t Split {0} into {1} and {2}.'.format(n.id, n_i.id, n_j.id))
         if n.is_root:
             self.root = self.create_node(ClusterNode, children=[n_i, n_j])
         else:

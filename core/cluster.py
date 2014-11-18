@@ -64,13 +64,13 @@ def hac(vecs, metric, linkage_method, threshold):
     return labels
 
 
-def ihac(vecs, metric, linkage_method, threshold, lower_limit_scale, upper_limit_scale):
+def ihac(vecs, metric, threshold, lower_limit_scale, upper_limit_scale):
     """
     Convenience method for clustering with IHAC.
     """
     Node.lower_limit_scale = lower_limit_scale
     Node.upper_limit_scale = upper_limit_scale
-    model = IHAC()
+    model = IHAC(metric=metric)
     model.fit(vecs.toarray())
     clusters, labels = model.clusters(distance_threshold=threshold, with_labels=True)
     return labels

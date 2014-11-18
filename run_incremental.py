@@ -28,16 +28,14 @@ from core.ihac.node import Node
 
 # Use idealized params (for IHAC w/ wikinews_big.json)
 param_grid = ParameterGrid({
-    'metric': ['cosine'],
-    'linkage_method': ['average'],
-    'threshold': [55.],
+    'metric': ['euclidean'],
+    'threshold': [60.],
     'weights': [[21., 81., 41.]],
     'lower_limit_scale': [0.8],
     'upper_limit_scale': [1.15]
 })
 
 pgs = [pg for pg in param_grid]
-
 
 def evaluate_average(datapath, ntrials=30):
     articles, labels_true = load_articles(datapath)
@@ -53,12 +51,9 @@ def evaluate_average(datapath, ntrials=30):
         for metric in result:
             results.setdefault(metric, [])
             results[metric].append(result[metric])
-        print(n_clusters)
 
     for metric in results:
         results[metric] = average(results[metric])
-    
-    print(sorted(results.items()))
 
 
 def evaluate(datapath):
@@ -70,9 +65,7 @@ def evaluate(datapath):
         build_vectors(articles, vecs_path)
 
     result, n_clusters = cluster(vecs_path, pgs[0], labels_true)
-    
-    print(n_clusters)
-    print(sorted(result.items()))
+    print(result)
 
 
 def cluster(filepath, pg, labels_true):
@@ -125,9 +118,8 @@ def chunk(vecs, n_chunks=3):
     return chunks
 
 if __name__ == '__main__':
-    # datapath = 'eval/data/event/handpicked.json'
-    datapath = 'eval/data/event/wikinews_big.json'
-
+    datapath = 'eval/data/event/handpicked.json'
+    #datapath = 'eval/data/event/wikinews_big.json'
     import sys
     if len(sys.argv) > 1 and sys.argv[1] == '-a':
         evaluate_average(datapath)

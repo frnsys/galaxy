@@ -4,8 +4,9 @@ from .hierarchy import Hierarchy
 
 
 class IHAC():
-    def __init__(self):
+    def __init__(self, metric='euclidean'):
         self.hierarchy = None
+        self.metric = metric
 
     def fit(self, vecs):
         """
@@ -14,7 +15,7 @@ class IHAC():
         if self.hierarchy is None:
             if len(vecs) < 2:
                 raise Exception('You must initialize the model with at least two vectors.')
-            self.hierarchy = Hierarchy(*vecs[:2])
+            self.hierarchy = Hierarchy(*vecs[:2], metric=self.metric)
             vecs = vecs[2:]
 
         for vec in vecs:
