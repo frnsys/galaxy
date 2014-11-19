@@ -23,7 +23,7 @@ Notes:
 """
 
 
-def hac(vecs, metric, linkage_method, threshold):
+def hac(vecs, metric, linkage_method, threshold, weights):
     """
     Hierarchical Agglomerative Clustering.
 
@@ -38,6 +38,7 @@ def hac(vecs, metric, linkage_method, threshold):
     have a significantly lower memory footprint, it seems better to use
     that as a multicore job.
     """
+    vecs = _weight_vectors(vecs, weights)
 
     if platform == 'darwin':
         # This breaks on OSX 10.9.4, py3.3+, with large arrays:
@@ -64,12 +65,15 @@ def hac(vecs, metric, linkage_method, threshold):
     return labels
 
 
-def ihac(vecs, metric, threshold, lower_limit_scale, upper_limit_scale):
+def ihac(vecs, metric, threshold, lower_limit_scale, upper_limit_scale, weights):
     """
     Convenience method for clustering with IHAC.
     """
     Node.lower_limit_scale = lower_limit_scale
     Node.upper_limit_scale = upper_limit_scale
+
+    vecs = _weight_vectors(vecs, weights)
+
     model = IHAC(metric=metric)
     model.fit(vecs.toarray())
     clusters, labels = model.clusters(distance_threshold=threshold, with_labels=True)
@@ -100,6 +104,7 @@ def digbc(docs, threshold):
 
 
 def digshc(docs, alpha, threshold, epsilon, hr_min):
+    # Worth nothing that this takes in plaintext documents, _not_ vectors.
     shc = SimilarityHistogramClusterer(alpha, threshold, epsilon, hr_min)
 
     for doc in docs:
@@ -125,3 +130,15 @@ def digshc(docs, alpha, threshold, epsilon, hr_min):
 
     return labels
 
+
+def _weight_vectors(v, weights):
+    # Convert to a scipy.sparse.lil_matrix because it is subscriptable.
+    v = v.tolil()
+
+    # Apply weights to the proper columns:
+    # col 0 = pub, cols 1-101 = bow, 102+ = concepts
+    # weights = [pub, bow, concept]
+    v[:,0] *= weights[0]
+    v[:,1:101] *= weights[1]
+    v[:,101:] *= weights[2]
+    return v

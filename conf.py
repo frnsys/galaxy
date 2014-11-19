@@ -1,4 +1,4 @@
 APP = {
-    'PIPELINE_PATH': '.',
+    'PIPELINE_PATH': '~/env/argos.cluster/',
     'KNOWLEDGE_HOST': ''
 }

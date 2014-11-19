@@ -87,7 +87,7 @@ class Cluster(object):
 
     def size(self):
         return len(self.doc_ids)
-        
+
 if __name__ == '__main__':
     docs = ["river rafting. mild river rafting. river rafting trips",
             "wild river adventures. river rafting vacation plan",
@@ -99,4 +99,3 @@ if __name__ == '__main__':
 
     import ipdb; ipdb.set_trace()
     # print([dig.get_sim_blend(a, b) for (a, b) in [(0, 1), (1, 2), (0, 2)]])
-       

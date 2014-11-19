@@ -48,7 +48,7 @@ class CobwebTree:
             if (not current.children and current.cu_for_fringe_split(instance)
                 <= 0.0):
                 current.increment_counts(instance)
-                return current 
+                return current
 
             elif not current.children:
                 new = current.__class__(current)
@@ -100,7 +100,7 @@ class CobwebTree:
         while current:
             if not current.children:
                 return current
-            
+
             best1, best2 = current.two_best_children(instance)
 
             if best1:
@@ -115,7 +115,7 @@ class CobwebTree:
         node without modifying the counts of the tree.
 
         Uses the new and best operations; when new is the best operation it
-        returns the current node otherwise it iterates on the best node. 
+        returns the current node otherwise it iterates on the best node.
         """
         current = self.root
         while current:
@@ -126,7 +126,7 @@ class CobwebTree:
             action_cu, best_action = current.get_best_operation(instance,
                                                                  best1, best2,
                                                                  ["best",
-                                                                  "new"]) 
+                                                                  "new"])
             if best1:
                 best1_cu, best1 = best1
             else:
@@ -149,11 +149,11 @@ class CobwebTree:
             prediction[attr] = instance[attr]
 
         concept = self.cobweb_categorize(instance)
-        
+
         for attr in concept.av_counts:
             if attr in prediction:
                 continue
-            
+
             values = []
             for val in concept.av_counts[attr]:
                 values += [val] * concept.av_counts[attr][val]
@@ -174,7 +174,7 @@ class CobwebTree:
         """
         Fisher's flexible prediction task. It computes the accuracy of
         correctly predicting each attribute value (removing it from the
-        instance first). It then returns the average accuracy. 
+        instance first). It then returns the average accuracy.
         """
         probs = []
         for attr in instance:
@@ -203,8 +203,8 @@ class CobwebTree:
 
     def sequential_prediction(self, filename, length, guessing=False):
         """
-        Given a json file, perform an incremental sequential prediction task. 
-        Try to flexibly predict each instance before incorporating it into the 
+        Given a json file, perform an incremental sequential prediction task.
+        Try to flexibly predict each instance before incorporating it into the
         tree. This will give a type of cross validated result.
         """
         json_data = open(filename, "r")
@@ -263,7 +263,7 @@ class CobwebTree:
         """
         Equivalent of predictions, but just makes predictions from the root of
         the concept tree. This is the equivalent of guessing the distribution
-        of all attribute values. 
+        of all attribute values.
         """
         n = iterations
         runs = []
@@ -314,7 +314,7 @@ class CobwebTree:
         Perform the sequential prediction task many times and compute the mean
         and std of all flexible predictions.
         """
-        n = iterations 
+        n = iterations
         runs = []
         nodes = []
         for i in range(0,n):
@@ -402,14 +402,14 @@ class CobwebNode:
         instance.
 
         input:
-            instance: {a1: v1, a2: v2, ...} - a hashtable of attr and values. 
+            instance: {a1: v1, a2: v2, ...} - a hashtable of attr and values.
         """
-        self.count += 1 
+        self.count += 1
         for attr in instance:
             self.av_counts[attr] = self.av_counts.setdefault(attr,{})
             self.av_counts[attr][instance[attr]] = (self.av_counts[attr].get(
                 instance[attr], 0) + 1)
-    
+
     def update_counts_from_node(self, node):
         """
         Increments the counts of the current node by the amount in the specified
@@ -426,7 +426,7 @@ class CobwebNode:
         """
         Returns the number of correct guesses that are expected from the given
         concept. This is the sum of the probability of each attribute value
-        squared. 
+        squared.
         """
         correct_guesses = 0.0
 
@@ -457,7 +457,7 @@ class CobwebNode:
         return ((child_correct_guesses - self.expected_correct_guesses()) /
                 (1.0 * len(self.children)))
 
-    def get_best_operation(self, instance, best1, best2, 
+    def get_best_operation(self, instance, best1, best2,
                             possible_ops=["best", "new", "merge", "split"]):
         """
         Given a set of possible operations, find the best and return its cu and
@@ -476,7 +476,7 @@ class CobwebNode:
 
         if "best" in possible_ops:
             operations.append((best1_cu,"best"))
-        if "new" in possible_ops: 
+        if "new" in possible_ops:
             operations.append((self.cu_for_new_child(instance),'new'))
         if "merge" in possible_ops and len(self.children) > 2 and best2:
             operations.append((self.cu_for_merge(best1, best2, instance),'merge'))
@@ -493,7 +493,7 @@ class CobwebNode:
         into in terms of category utility.
 
         input:
-            instance: {a1: v1, a2: v2,...} - a hashtable of attr. and values. 
+            instance: {a1: v1, a2: v2,...} - a hashtable of attr. and values.
         output:
             (0.2,2),(0.1,3) - the category utility and indices for the two best
             children (the second tuple will be None if there is only 1 child).
@@ -508,7 +508,7 @@ class CobwebNode:
         if len(children_cu) == 0:
             return None, None
         if len(children_cu) == 1:
-            return (children_cu[0][0], children_cu[0][2]), None 
+            return (children_cu[0][0], children_cu[0][2]), None
 
         return ((children_cu[0][0], children_cu[0][2]), (children_cu[1][0],
                                                          children_cu[1][2]))
@@ -533,7 +533,7 @@ class CobwebNode:
     def create_new_child(self, instance):
         """
         Creates a new child (to the current node) with the counts initialized by
-        the given instance. 
+        the given instance.
         """
         new_child = self.__class__()
         new_child.parent = self
@@ -634,7 +634,7 @@ class CobwebNode:
         """
         temp = self.__class__()
         temp.update_counts_from_node(self)
-        
+
         temp.create_child_with_current_counts()
         temp.increment_counts(instance)
         temp.create_new_child(instance)
@@ -644,7 +644,7 @@ class CobwebNode:
     def cu_for_split(self, best):
         """
         Return the category utility for splitting the best child.
-        
+
         input:
             best1: a child in the children array.
         output:
@@ -672,7 +672,7 @@ class CobwebNode:
     def gensym(self):
         """
         Generates a unique id and increments the class counter. This is used to
-        create a unique name for every concept. 
+        create a unique name for every concept.
         """
         self.__class__.counter += 1
         return str(self.__class__.counter)
@@ -689,7 +689,7 @@ class CobwebNode:
         """
         ret = str(('\t' * depth) + "|-" + str(self.av_counts) + ":" +
                   str(self.count) + '\n')
-        
+
         for c in self.children:
             ret += c.pretty_print(depth+1)
 
@@ -721,12 +721,12 @@ class CobwebNode:
     def num_concepts(self):
         """
         Return the number of concepts contained in the tree defined by the
-        current node. 
+        current node.
         """
         children_count = 0
         for c in self.children:
-           children_count += c.num_concepts() 
-        return 1 + children_count 
+           children_count += c.num_concepts()
+        return 1 + children_count
 
     def output_json(self):
         """

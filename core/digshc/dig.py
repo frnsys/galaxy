@@ -183,7 +183,7 @@ class DocumentIndexGraph(nx.DiGraph):
         pmatches = self.get_matching_phrases(doc_a.id, doc_b.id)
         for pmatch in pmatches:
             phrase = pmatch.phrase
-            f_a = self.get_phrase_freq(doc_a.id, phrase) 
+            f_a = self.get_phrase_freq(doc_a.id, phrase)
             f_b = self.get_phrase_freq(doc_b.id, phrase)
             sent_n_a = pmatch.positions[doc_a.id][0]
             sent_n_b = pmatch.positions[doc_b.id][0]
@@ -200,7 +200,7 @@ class DocumentIndexGraph(nx.DiGraph):
         row, col = triu_index(doc_a_id, doc_b_id)
         if self.sims[row, col] == -1.0:
             doc_a = self.get_doc(doc_a_id)
-            doc_b = self.get_doc(doc_b_id)        
+            doc_b = self.get_doc(doc_b_id)
             sim_p = self.get_sim_p(doc_a, doc_b)
             sim_t = self.get_sim_t(doc_a, doc_b)
             sim_blend = self.alpha * sim_p + (1 - self.alpha) * sim_t
@@ -216,7 +216,7 @@ class DocumentIndexGraph(nx.DiGraph):
         # TODO: figure out the best way of doing this,
         # May be this can help:
         # http://stats.stackexchange.com/questions/36152/converting-similarity-matrix-to-euclidean-distance-matrix)
-        
+
         sim = self.get_sim_blend(doc_a_id, doc_b_id)
         # return 1.0 / (1 + sim)
 
@@ -236,11 +236,11 @@ class DocumentIndexGraph(nx.DiGraph):
             #  interval. We must figure out the maximum possible similarity
             #  for that, or use the maximum seen (but we would loose incrementality)
             raise NotImplementedError
-        
+
         return dists
 
-    def get_similarity_matrix(self):    
-        # This ensures all sims are calculated 
+    def get_similarity_matrix(self):
+        # This ensures all sims are calculated
         # (sims calculation is lazy)
         n_docs = len(self.indexed_docs)
         pairs = itertools.product(range(n_docs),range(n_docs))
@@ -305,7 +305,7 @@ def simple_demo():
     docs = ["river rafting. mild river rafting. river rafting trips",
             "wild river adventures. river rafting vacation plan",
             "fishin trips. fishing vacation plan. booking fishing trips. river fishing"]
-    
+
     dig = DocumentIndexGraph()
     for doc in docs:
         dig.index_document(doc)
@@ -321,17 +321,17 @@ def dist_matrix_demo():
     """
     N = 10
     docs, true_labels = load_articles('../../eval/data/event/handpicked.json')
-    
+
     docs = docs[:N]
     docs = [d.text for d in docs]
     dig = DocumentIndexGraph()
     for doc in docs:
         dig.index_document(doc)
-    
+
     dists = dig.get_distance_matrix()
 
     print(dists)
-    
+
 
 if __name__ == '__main__':
     # simple_demo()

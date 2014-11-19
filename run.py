@@ -1,4 +1,3 @@
-import sys
 import json
 from itertools import permutations
 
@@ -6,20 +5,17 @@ from core.vectorize import train
 from core import concepts
 from eval import evaluate, test
 
+import click as c
 import numpy as np
 from sklearn.grid_search import ParameterGrid
 
-cmd = sys.argv[1]
-datapath = sys.argv[2]
-
-
 approaches = {
-    #'hac': ParameterGrid({
-        #'metric': ['cosine'],
-        #'linkage_method': ['average'],
-        #'threshold': np.arange(0.1, 0.25, 0.05),
-        #'weights': list( permutations(np.arange(1., 82., 20.), 3) )
-    #}),
+    'hac': ParameterGrid({
+        'metric': ['cosine'],
+        'linkage_method': ['average'],
+        'threshold': np.arange(0.1, 0.25, 0.05),
+        'weights': list( permutations(np.arange(1., 82., 20.), 3) )
+    }),
     #'ihac': ParameterGrid({
         #'metric': ['cosine'],
         #'threshold': np.arange(40., 100., 10.),
@@ -41,14 +37,35 @@ approaches = {
         #'lower_limit_scale': np.arange(0.6, 0.9, 0.1),
         #'upper_limit_scale': np.arange(1.4, 1.6, 0.05)
     #}),
-    #'digbc': ParameterGrid({
-        #'threshold': np.arange(0.00295, 0.0100, 0.00005)
-    #})
+    'digbc': ParameterGrid({
+        'threshold': np.arange(0.00295, 0.0100, 0.00005)
+    })
 }
 
+params = {
+    'ihac': {
+        'metric': 'euclidean',
+        'threshold': 60.,
+        'weights': (21., 81., 41.),
+        'lower_limit_scale': 0.8,
+        'upper_limit_scale': 1.15
+    }
+}
 
-# Train the feature pipeline.
-if cmd == 'train':
+datapath_type = c.Path(exists=True, dir_okay=False)
+approach_type = c.Choice(['hac', 'ihac', 'digbc'])
+
+@c.group()
+def run():
+    pass
+
+
+@run.command()
+@c.argument('datapath', type=datapath_type)
+def train(datapath):
+    """
+    Train the feature pipelines.
+    """
     training_file = open(datapath, 'r')
     training_data = json.load(training_file)
 
@@ -57,26 +74,32 @@ if cmd == 'train':
     concepts.train(docs)
 
 
-# Test the clustering on a dataset that has labels.
-elif cmd == 'evaluate':
-    try:
-        approach = sys.argv[3]
-    except IndexError:
-        approach = 'hac'
+@run.command()
+@c.argument('approach', type=approach_type)
+@c.argument('datapath', type=datapath_type)
+@c.option('--incremental', is_flag=True, help='Randomly order the input data.')
+def eval(approach, datapath, incremental):
+    """
+    Eval a clustering approach on labeled data.
+    """
+    param_grid = approaches[approach] if not incremental else params[approach]
+    report_path = evaluate(datapath,
+                           approach=approach,
+                           param_grid=param_grid,
+                           incremental=incremental)
+    c.echo('Report compiled at {0}.'.format(report_path))
 
-    evaluate(datapath, approach=approach, param_grid=approaches[approach])
+
+@run.command()
+@c.argument('approach', type=approach_type)
+@c.argument('datapath', type=datapath_type)
+def cluster(approach, datapath):
+    """
+    Run a clustering approach on unlabeled data.
+    """
+    report_path = test(datapath, approach, params[approach])
+    c.echo('Report compiled at {0}.'.format(report_path))
 
 
-# Test the clustering on a dataset that doesn't have labels.
-elif cmd == 'test':
-    test(datapath)
-
-
-# Compare different clustering algorithms on different param grids.
-elif cmd == 'compare':
-    results = {}
-    for approach, param_grid in approaches.items():
-        print('Running the `{0}` algo...'.format(approach))
-        results[approach] = evaluate(datapath, approach=approach, param_grid=param_grid)
-
-    #print(results)
+if __name__ == '__main__':
+    run()

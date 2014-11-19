@@ -185,7 +185,7 @@ class DocumentIndexGraphClusterer(nx.DiGraph):
         pmatches = self.get_matching_phrases(doc_a.id, doc_b.id)
         for pmatch in pmatches:
             phrase = pmatch.phrase
-            f_a = self.get_phrase_freq(doc_a.id, phrase) 
+            f_a = self.get_phrase_freq(doc_a.id, phrase)
             f_b = self.get_phrase_freq(doc_b.id, phrase)
             sent_n_a = pmatch.positions[doc_a.id][0]
             sent_n_b = pmatch.positions[doc_b.id][0]
@@ -200,7 +200,7 @@ class DocumentIndexGraphClusterer(nx.DiGraph):
 
     def get_sim_blend(self, doc_a_id, doc_b_id, alpha=0.7):
         doc_a = self.get_doc(doc_a_id)
-        doc_b = self.get_doc(doc_b_id)        
+        doc_b = self.get_doc(doc_b_id)
         sim_p = self.get_sim_p(doc_a, doc_b)
         sim_t = self.get_sim_t(doc_a, doc_b)
 
@@ -210,10 +210,10 @@ class DocumentIndexGraphClusterer(nx.DiGraph):
     def get_cluster_sim(self, cluster, doc):
         numerator = 0.0
         pmatches = []
-        
+
         for doc_b_id in cluster.doc_ids:
             pmatches += self.get_matching_phrases(doc.id, doc_b_id)
-        
+
         for pmatch in pmatches:
             phrase = pmatch.phrase
 
@@ -229,7 +229,7 @@ class DocumentIndexGraphClusterer(nx.DiGraph):
             doc_freq = self.get_cluster_phrase_doc_freq(cluster, phrase)
 
             ratio = doc_freq * 1.0 / len(cluster.doc_ids)
-            
+
             numerator += (pmatch.g() * (ratio * f_c * w_c + f_d * w_d)) ** 2
 
         return (numerator ** 0.5) / (cluster.get_normalization_weight() + doc.get_normalization_weight())
@@ -360,7 +360,7 @@ class Cluster(object):
 
     def get_normalization_weight(self):
         return self.norm_weight
-        
+
 
 if __name__ == '__main__':
     docs = ["river rafting. mild river rafting. river rafting trips",

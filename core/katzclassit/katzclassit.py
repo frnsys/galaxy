@@ -47,7 +47,7 @@ class KatzClassitNode:
 
     def shallow_copy(self):
         """
-        Creates a copy of the current node and its children 
+        Creates a copy of the current node and its children
         (but not their children)
         """
         temp = self.__class__()
@@ -71,9 +71,9 @@ class KatzClassitNode:
 
         input:
             instance: {w1: v1, w2: v2, ...} - a hashtable of
-            occurring words and frequency values. 
+            occurring words and frequency values.
         """
-        self.doc_count += 1 
+        self.doc_count += 1
         for word, fval in instance.items():
             self.av_counts.setdefault(word, {})
             self.av_counts[word].setdefault(fval, 0)
@@ -84,7 +84,7 @@ class KatzClassitNode:
 
             self._cf.setdefault(word, 0)
             self._cf[word] += fval
-    
+
     def update_counts_from_node(self, node):
         """
         Increments the counts of the current node
@@ -106,7 +106,7 @@ class KatzClassitNode:
     def category_utility(self):
         """
         Returns the category utility of a particular division of a concept
-        into its children. 
+        into its children.
         This is used as the heuristic to guide the concept formation.
         """
         k = len(self.children)
@@ -119,7 +119,7 @@ class KatzClassitNode:
             child_correct_guesses += p_of_child * child.cu_k()
 
         return (child_correct_guesses - self.cu_k()) * 1.0 / k
-    
+
     def cu_k(self):
         """
         Returns the number of correct guesses that are expected from
@@ -153,7 +153,7 @@ class KatzClassitNode:
 
     def p(self, word):
         """ Probabiblity that an occurrence of the word in a document
-            of current cluster is a repeat 
+            of current cluster is a repeat
         """
         return 1 - self.df(word) / self.cf(word)
 
@@ -161,7 +161,7 @@ class KatzClassitNode:
         """ Document Frequency = number of documents in the
             current cluster that contain the given word
 
-            (i.e: number of documents having an attribute for 
+            (i.e: number of documents having an attribute for
             this word, as we assume absent frequency counts to
             represent 0 occurrences of a word)
         """
@@ -170,7 +170,7 @@ class KatzClassitNode:
     def cf(self, word):
         """ Collection Frequency = total number of occurences of
             the given word within the documents of the current cluster
-            
+
             (i.e: the sum of frequency attributes among all instances)
         """
         return self._cf[word]
@@ -198,7 +198,7 @@ class KatzClassitNode:
 
         if "best" in possible_ops:
             operations.append((best1_cu,"best"))
-        if "new" in possible_ops: 
+        if "new" in possible_ops:
             operations.append((self.cu_for_new_child(instance),'new'))
         if "merge" in possible_ops and len(self.children) > 2 and best2:
             operations.append((self.cu_for_merge(best1, best2, instance),'merge'))
@@ -215,7 +215,7 @@ class KatzClassitNode:
         into in terms of category utility.
 
         input:
-            instance: {a1: v1, a2: v2,...} - a hashtable of word. and values. 
+            instance: {a1: v1, a2: v2,...} - a hashtable of word. and values.
         output:
             (0.2,2),(0.1,3) - the category utility and indices for the two best
             children (the second tuple will be None if there is only 1 child).
@@ -230,7 +230,7 @@ class KatzClassitNode:
         if len(children_cu) == 0:
             return None, None
         if len(children_cu) == 1:
-            return (children_cu[0][0], children_cu[0][2]), None 
+            return (children_cu[0][0], children_cu[0][2]), None
 
         return ((children_cu[0][0], children_cu[0][2]), (children_cu[1][0],
                                                          children_cu[1][2]))
@@ -255,7 +255,7 @@ class KatzClassitNode:
     def create_new_child(self, instance, label=None):
         """
         Creates a new child (to the current node) with the counts initialized by
-        the given instance. 
+        the given instance.
         """
         new_child = self.__class__(label=label)
         new_child.parent = self
@@ -356,7 +356,7 @@ class KatzClassitNode:
         """
         temp = self.__class__()
         temp.update_counts_from_node(self)
-        
+
         temp.create_child_with_current_counts()
         temp.increment_counts(instance)
         temp.create_new_child(instance)
@@ -366,7 +366,7 @@ class KatzClassitNode:
     def cu_for_split(self, best):
         """
         Return the category utility for splitting the best child.
-        
+
         input:
             best1: a child in the children array.
         output:
@@ -394,7 +394,7 @@ class KatzClassitNode:
     def gensym(self):
         """
         Generates a unique id and increments the class counter. This is used to
-        create a unique name for every concept. 
+        create a unique name for every concept.
         """
         self.__class__.counter += 1
         return str(self.__class__.counter)
@@ -411,7 +411,7 @@ class KatzClassitNode:
         Prints the categorization tree.
         """
         ret = ('\t' * depth) + "|- %s: \n" % self.get_label()
-        
+
         for c in self.children:
             ret += c.pretty_print(depth+1)
 
@@ -423,7 +423,7 @@ class KatzClassitNode:
         if self.label:
             return self.label
         else:
-            return str(self.concept_id)    
+            return str(self.concept_id)
 
     def depth(self):
         """
@@ -451,12 +451,12 @@ class KatzClassitNode:
     def num_concepts(self):
         """
         Return the number of concepts contained in the tree defined by the
-        current node. 
+        current node.
         """
         children_count = 0
         for c in self.children:
-           children_count += c.num_concepts() 
-        return 1 + children_count 
+           children_count += c.num_concepts()
+        return 1 + children_count
 
     def get_probability(self, word, val):
         """
@@ -515,7 +515,7 @@ class KatzClassitHierarchy:
             if (not current.children and current.cu_for_fringe_split(instance)
                 <= 0.0):
                 current.increment_counts(instance)
-                return current 
+                return current
 
             elif not current.children:
                 new = current.__class__(current)
@@ -566,7 +566,7 @@ class KatzClassitHierarchy:
         while current:
             if not current.children:
                 return current
-            
+
             best1, best2 = current.two_best_children(instance)
 
             if best1:
@@ -581,7 +581,7 @@ class KatzClassitHierarchy:
         node without modifying the counts of the tree.
 
         Uses the new and best operations; when new is the best operation it
-        returns the current node otherwise it iterates on the best node. 
+        returns the current node otherwise it iterates on the best node.
         """
         current = self.root
         while current:
@@ -592,7 +592,7 @@ class KatzClassitHierarchy:
             action_cu, best_action = current.get_best_operation(instance,
                                                                  best1, best2,
                                                                  ["best",
-                                                                  "new"]) 
+                                                                  "new"])
             if best1:
                 best1_cu, best1 = best1
             else:
@@ -615,11 +615,11 @@ class KatzClassitHierarchy:
             prediction[word] = instance[word]
 
         concept = self.cobweb_categorize(instance)
-        
+
         for word in concept.av_counts:
             if word in prediction:
                 continue
-            
+
             values = []
             for val in concept.av_counts[word]:
                 values += [val] * concept.av_counts[word][val]
@@ -640,7 +640,7 @@ class KatzClassitHierarchy:
         """
         Fisher's flexible prediction task. It computes the accuracy of
         correctly predicting each attribute value (removing it from the
-        instance first). It then returns the average accuracy. 
+        instance first). It then returns the average accuracy.
         """
         probs = []
         for word in instance:
@@ -694,7 +694,7 @@ class KatzClassitHierarchy:
         """
         Equivalent of predictions, but just makes predictions from the root of
         the concept tree. This is the equivalent of guessing the distribution
-        of all attribute values. 
+        of all attribute values.
         """
         n = iterations
         runs = []
@@ -745,7 +745,7 @@ class KatzClassitHierarchy:
         Perform the sequential prediction task many times and compute the mean
         and std of all flexible predictions.
         """
-        n = iterations 
+        n = iterations
         runs = []
         nodes = []
         for i in range(0,n):
@@ -806,13 +806,13 @@ class KatzClassitClusterer(object):
                 # 'self': {
                 #     'hierarchy': self.hierarchy,
                 #     'vecs': self.vecs,
-                #     'size': self.size                
+                #     'size': self.size
                 # }
-            }    
+            }
             pickle.dump(data, f)
 
     def load(self, prefix):
-        with open(prefix + 'hierarchy.dump', 'rb') as f:    
+        with open(prefix + 'hierarchy.dump', 'rb') as f:
             data = pickle.load(f)
             # for name, val in data["Node"].items():
             #     setattr(Node, name, val)
@@ -876,7 +876,7 @@ def test_with_articles(datapath):
     artdicts = sparse_matrix_to_array_of_dicts(vecs)
 
     labels = [art.title for art in articles]
-    
+
     hierarchy.fit(artdicts, labels)
 
     print(hierarchy.root.pretty_print())
