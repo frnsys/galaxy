@@ -30,7 +30,7 @@ def calculate_bests(results):
         srtd = sorted(results, key=lambda x:x['score'][metric], reverse=True)
 
         lines.append('======\n{0}\n======'.format(metric))
-        lines += ['{0}, scored {1} [{2}]'.format(res['params'], res['score'][metric], metric) for res in srtd[:20]]
+        lines += ['{0}, scored {1} [{2}]'.format(res['params'], res['score'][metric], metric) for res in srtd[:100]]
         lines.append('\n\n============================\n\n')
 
         bests[metric] = srtd[0]
