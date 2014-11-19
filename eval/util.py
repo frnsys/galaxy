@@ -1,3 +1,4 @@
+import sys
 import logging
 import click
 
@@ -35,7 +36,7 @@ class TableGenerator():
         for key in self.keys:
             row += self._build_column(key)
             self.divider += self._build_column(len(key) * '-', pad_char='-')
-        return '\n'.join([self.divider, row, self.divider.replace('-', '=')])
+        return '\n'.join([row, self.divider])
 
     def build_row(self, data):
         row = ''
@@ -53,7 +54,7 @@ class TableGenerator():
                 val = val[:p]
                 p = 0
             row += self._build_column(val, padding=p)
-        return '\n'.join([row, self.divider])
+        return row
 
     def _build_column(self, text, pad_char=' ', padding=None):
         # Fallback to base padding if none is specified.
@@ -69,3 +70,29 @@ class TableGenerator():
         pad_r = int(padding-pad_l)
 
         return '|' + (pad_l * pad_char) + text + (pad_r * pad_char) + '|'
+
+
+def progress_bar(percent, elapsed_time):
+    """
+    Show a progress bar.
+    """
+    if percent == 0:
+        estimated = 0
+    else:
+        estimated = elapsed_time/percent
+    remaining = estimated - elapsed_time
+    percent *= 100
+
+    width = 100
+    info = '{0:8.4f} {1:8.2f} sec'.format(percent, remaining)
+    sys.stdout.write('[{0}] {1}'.format(' ' * width, info))
+    sys.stdout.flush()
+    sys.stdout.write('\b' * (width+len(info)+2))
+
+    for i in range(int(percent)):
+        sys.stdout.write('=')
+        sys.stdout.flush()
+    sys.stdout.write('\b' * (width+len(info)+2))
+
+    if percent == 100:
+        print('\n')
