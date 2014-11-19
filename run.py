@@ -9,6 +9,9 @@ import click as c
 import numpy as np
 from sklearn.grid_search import ParameterGrid
 
+# Suppress floating point errors.
+np.seterr(all='ignore')
+
 approaches = {
     'hac': ParameterGrid({
         'metric': ['cosine'],
@@ -23,20 +26,20 @@ approaches = {
         #'lower_limit_scale': np.arange(0.1, 1.1, 0.1),
         #'upper_limit_scale': np.arange(1.1, 2.0, 0.05)
     #}),
-    'ihac': ParameterGrid({
-        'metric': ['euclidean'],
-        'threshold': np.arange(40., 100., 10.),
-        'weights': [(21., 81., 41.)],
-        'lower_limit_scale': [0.8],
-        'upper_limit_scale': [1.15]
-    }),
     #'ihac': ParameterGrid({
         #'metric': ['euclidean'],
         #'threshold': np.arange(40., 100., 10.),
-        #'weights': list( permutations(np.arange(1., 82., 10.), 3) ),
-        #'lower_limit_scale': np.arange(0.6, 0.9, 0.1),
-        #'upper_limit_scale': np.arange(1.4, 1.6, 0.05)
+        #'weights': [(21., 81., 41.)],
+        #'lower_limit_scale': [0.8],
+        #'upper_limit_scale': [1.15]
     #}),
+    'ihac': ParameterGrid({
+        'metric': ['euclidean'],
+        'threshold': np.arange(40., 100., 10.),
+        'weights': list( permutations(np.arange(1., 82., 10.), 3) ),
+        'lower_limit_scale': np.arange(0.6, 0.9, 0.2),
+        'upper_limit_scale': np.arange(1.1, 1.6, 0.1)
+    }),
     'digbc': ParameterGrid({
         'threshold': np.arange(0.00295, 0.0100, 0.00005)
     })
