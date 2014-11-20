@@ -83,8 +83,15 @@ def progress_bar(percent, elapsed_time):
     remaining = estimated - elapsed_time
     percent *= 100
 
+    if remaining > 3600:
+        countdown = '{:8.2f}hrs'.format(remaining/3600)
+    elif remaining > 60:
+        countdown = '{:8.2f}min'.format(remaining/60)
+    else:
+        countdown = '{:8.2f}sec'.format(remaining)
+
     width = 100
-    info = '{0:8.4f} {1:8.2f} sec'.format(percent, remaining)
+    info = '{0:8.4f} {1}'.format(percent, countdown)
     sys.stdout.write('[{0}] {1}'.format(' ' * width, info))
     sys.stdout.flush()
     sys.stdout.write('\b' * (width+len(info)+2))
