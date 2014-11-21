@@ -12,6 +12,9 @@ from sklearn.grid_search import ParameterGrid
 # Suppress floating point errors.
 np.seterr(all='ignore')
 
+# build weights while keeping the first weight constant.
+weights = [[1.] + list(grp) for grp in list(permutations(np.arange(20., 100., 10.), 2))]
+
 approaches = {
     'hac': ParameterGrid({
         'metric': ['cosine'],
@@ -35,10 +38,11 @@ approaches = {
     #}),
     'ihac': ParameterGrid({
         'metric': ['euclidean'],
-        'threshold': np.arange(40., 100., 10.),
-        'weights': list( permutations(np.arange(1., 82., 10.), 3) ),
-        'lower_limit_scale': np.arange(0.6, 0.9, 0.2),
-        'upper_limit_scale': np.arange(1.1, 1.6, 0.1)
+        'threshold': np.arange(30., 60., 5.),
+        #'weights': list( permutations(np.arange(1., 82., 10.), 3) ),
+        'weights': weights,
+        'lower_limit_scale': np.arange(0.5, 0.9, 0.1),
+        'upper_limit_scale': np.arange(1., 1.3, 0.05)
     }),
     'digbc': ParameterGrid({
         'threshold': np.arange(0.00295, 0.0100, 0.00005)
@@ -48,10 +52,10 @@ approaches = {
 params = {
     'ihac': {
         'metric': 'euclidean',
-        'threshold': 60.,
-        'weights': (21., 81., 41.),
-        'lower_limit_scale': 0.8,
-        'upper_limit_scale': 1.15
+        'threshold': 40.,
+        'weights': (1., 80., 30.),
+        'lower_limit_scale': 0.6,
+        'upper_limit_scale': 1.1
     }
 }
 
