@@ -141,7 +141,7 @@ class ClusterNode(Node):
         return self.mdm[rows, cols]
 
     def add_child(self, node):
-        logging.debug('[ADD_CHILD]\t Inserting {0} to {1}...'.format(node.id, self.id))
+        logging.debug('[ADD_CHILD]\t\t Inserting {0} to {1}...'.format(node.id, self.id))
 
         # As a precaution, check if the child-to-be already has a parent,
         # and remove them from it if they do.
