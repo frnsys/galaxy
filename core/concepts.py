@@ -80,7 +80,7 @@ def strip(text):
     punctuation = string.punctuation + '“”‘’–"'
     return text.strip(punctuation)
 
-def concepts(docs, strategy='stanford'):
+def concepts(docs, strategy='spotlight'):
     """
     Named entity recognition on
     a text document or documents.
@@ -109,7 +109,7 @@ def concepts(docs, strategy='stanford'):
             try:
                 ents = tagger.get_entities(doc)
             except UnicodeDecodeError as e:
-                print.exception('Unexpected unicode decoding error: {0}'.format(e))
+                print('Unexpected unicode decoding error: {0}'.format(e))
                 ents = {}
 
             # We're only interested in the entity names,
@@ -179,14 +179,14 @@ def concepts(docs, strategy='stanford'):
             try:
                 res = request.urlopen(req)
             except error.HTTPError as e:
-                print.exception('Error extracting entities (strategy=spotlight) with doc: {0}\n\nError: {1}'.format(doc, e.read()))
+                print('Error extracting entities (strategy=spotlight) with doc: {0}\n\nError: {1}'.format(doc, e.read()))
                 raise e
             if res.status != 200:
                 raise Exception('Response error, status was not 200')
             else:
                 content = res.read()
-                entities = json.loads(content.decode('utf-8'))['Resources']
-                return [entity['@surfaceForm'] for entity in entities]
+                ents = json.loads(content.decode('utf-8'))['Resources']
+                entities += [entity['@surfaceForm'] for entity in ents]
 
     else:
         raise Exception('Unknown strategy specified. Please use either `stanford` or `spotlight`.')

@@ -95,8 +95,8 @@ class LeafNode(Node):
 class ClusterNode(Node):
     def __init__(self, id, children, hierarchy):
         """
-            A new cluster node is created by passing
-            a list of children.
+        A new cluster node is created by passing
+        a list of children.
         """
         self.id = id
         self.children = children
@@ -106,14 +106,13 @@ class ClusterNode(Node):
         # We can access the master distance matrix this way.
         self.hierarchy = hierarchy
 
+        # Before claiming nodes as a children, we have to first remove
+        # each child from its former parent.
+        self.orphan_children(children)
         for ch in self.children:
-            # Before claiming this node as a child, we have to first remove
-            # the child from its former parent.
-            if ch.parent is not None:
-                ch.parent.remove_child(ch)
             ch.parent = self
-        self.center = np.mean([c.center for c in self.children], axis=0)
 
+        self.center = np.mean([c.center for c in self.children], axis=0)
         self._update_children_dists()
 
     def __repr__(self):
@@ -153,36 +152,51 @@ class ClusterNode(Node):
         node.parent = self
         self.children.append(node)
 
-        self.center = np.mean([c.center for c in self.children], axis=0)
+        self._update_dists()
 
-        # (Re)calculate distances to this node's new center.
-        self.hierarchy.update_distances(self)
-
-        self._update_children_dists()
+    def add_children(self, children):
+        self.orphan_children(children)
+        for child in children:
+            logging.debug('[ADD_CHILD]\t Inserting {0} to {1}...'.format(child.id, self.id))
+            child.parent = self
+            self.children.append(child)
+        self._update_dists()
 
     def remove_child(self, child):
         logging.debug('[REMOVE_CHILD]\t Removing {0} from {1}...'.format(child.id, self.id))
 
         child.parent = None
-
         self.children.remove(child)
 
-        self.center = np.mean([c.center for c in self.children], axis=0)
+        self._update_dists()
 
-        # It's possible that after removing a child there are no children left,
-        # in which case we skip these calculations. It is expected that the hierarchy
-        # managing this node properly clean up this childless node.
-        if self.children:
-            # (Re)calculate distances to this node's new center.
-            self.hierarchy.update_distances(self)
+    def remove_children(self, children):
+        for child in children:
+            logging.debug('[REMOVE_CHILD]\t Removing {0} from {1}...'.format(child.id, self.id))
+            child.parent = None
+            self.children.remove(child)
 
-            self._update_children_dists()
+        self._update_dists()
 
-        # If there are no children left, the center ends up being nan,
-        # so we replace it with zero.
-        # This node will eventually get destroyed by the managing hierarchy.
-        else:
-            self.center = np.array([0])
+    def orphan_children(self, children):
+        """
+        Bulk remove children from their parents.
+        """
+        parents_to_update = []
+
+        for child in children:
+            # Before claiming this node as a child, we have to first remove
+            # the child from its former parent.
+            if child.parent is not None:
+                logging.debug('[REMOVE_CHILD]\t Removing {0} from {1}...'.format(child.id, child.parent.id))
+                p = child.parent
+                child.parent = None
+                p.children.remove(child)
+                parents_to_update.append(p)
+
+        for parent in parents_to_update:
+            if parent.children:
+                parent._update_dists()
 
     def split_children(self):
         """
@@ -221,6 +235,28 @@ class ClusterNode(Node):
             nodes.append(n)
 
         return nodes
+
+    def _update_dists(self):
+        """
+        Update this node's related distances. This should be called after a
+        cluster node's children membership is modified.
+        """
+        # It's possible that after removing a child there are no children left,
+        # in which case we skip these calculations. It is expected that the hierarchy
+        # managing this node properly clean up this childless node.
+        if self.children:
+            self.center = np.mean([c.center for c in self.children], axis=0)
+
+            # (Re)calculate distances to this node's new center.
+            self.hierarchy.update_distances(self)
+
+            self._update_children_dists()
+
+        # If there are no children left, the center ends up being nan,
+        # so we replace it with zero.
+        # This node will eventually get destroyed by the managing hierarchy.
+        else:
+            self.center = np.array([0])
 
     def _update_children_dists(self):
         """

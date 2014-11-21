@@ -390,8 +390,7 @@ class Hierarchy():
         logging.debug('[MERGE]\t\t Merging {0} and {1}...'.format(n_i.id, n_j.id))
 
         n_p = n_i.parent
-        n_p.remove_child(n_i)
-        n_p.remove_child(n_j)
+        n_p.remove_children([n_i, n_j])
         n_k = self.create_node(ClusterNode, children=[n_i, n_j])
         n_p.add_child(n_k)
 
@@ -404,16 +403,15 @@ class Hierarchy():
         Split cluster node n by its largest nearest distance into two cluster nodes,
         and replace it with those new nodes.
         """
+        logging.debug('[SPLIT]\t\t Splitting {0}...'.format(n.id))
         n_i, n_j = n.split_children()
 
-        logging.debug('[SPLIT]\t\t Split {0} into {1} and {2}.'.format(n.id, n_i.id, n_j.id))
         if n.is_root:
             self.root = self.create_node(ClusterNode, children=[n_i, n_j])
         else:
             n_p = n.parent
             n_p.remove_child(n)
-            n_p.add_child(n_i)
-            n_p.add_child(n_j)
+            n_p.add_children([n_i, n_j])
 
         # Delete the original cluster (and then its id will be reused).
         # But first we have to separate it from its children.
