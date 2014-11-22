@@ -19,3 +19,4 @@ data/*
 *.json
 *.dump
 *.lprof
+*.h5

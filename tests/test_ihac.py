@@ -314,21 +314,23 @@ class HierarchyTest(unittest.TestCase):
 
     def test_incorporate_creates_new_cluster_node(self):
         # The cluster node and the new node should be siblings.
-        node_i = self.h.incorporate([60])
+        node_i = self.h.incorporate([90])
         self.assertEqual(self.initial_clus.siblings, [node_i])
 
     def test_fcluster(self):
-        node_i = self.h.incorporate([20])
+        node_i = self.h.incorporate([90])
         node_j = self.h.incorporate([40])
 
-        clusters = self.h.fcluster(distance_threshold=12.0)
-        self.assertEqual(clusters, [self.initial_leaves + [node_i], [node_j]])
+        print(self.h.display(vertical=False))
 
-        clusters = self.h.fcluster(distance_threshold=30.0)
-        self.assertEqual(clusters, [self.initial_leaves + [node_i, node_j]])
+        clusters = self.h.fcluster(distance_threshold=14.0)
+        self.assertEqual(clusters, [self.initial_leaves + [node_j], [node_i]])
+
+        clusters = self.h.fcluster(distance_threshold=71.0)
+        self.assertEqual(clusters, [self.initial_leaves + [node_j, node_i]])
 
         clusters = self.h.fcluster(distance_threshold=0.0)
-        self.assertEqual(clusters, [[self.initial_leaves[0]], [self.initial_leaves[1]], [node_i], [node_j]])
+        self.assertEqual(clusters, [[self.initial_leaves[0]], [self.initial_leaves[1]], [node_j], [node_i]])
 
 class ClusterNodeTest(unittest.TestCase):
     def setUp(self):
