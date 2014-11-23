@@ -89,6 +89,22 @@ class HierarchyTest(unittest.TestCase):
         # The centers matrix is nxm.
         self.assertEqual(self.h.centers.shape, (3,1))
 
+    def test_save_and_load(self):
+        ids     = self.h.ids
+        graph   = self.h.g.mx
+        dists   = self.h.dists
+        ndists  = self.h.ndists
+        centers = self.h.centers
+
+        self.h.save('/tmp/hierarchy.ihac')
+
+        h = Hierarchy.load('/tmp/hierarchy.ihac')
+        assert_array_equal(graph,   h.g.mx)
+        assert_array_equal(dists,   h.dists)
+        assert_array_equal(ids,     h.ids.read())
+        assert_array_equal(ndists,  h.ndists.read())
+        assert_array_equal(centers, h.centers.read())
+
     def test_create_node(self):
         node = self.h.create_node(vec=[20])
 

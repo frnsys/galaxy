@@ -1,12 +1,13 @@
-import os
 import logging
 
 import numpy as np
+import tables as tb
 from scipy.spatial.distance import cdist, euclidean, cosine
 
 from core.ihac.util import split_dist_matrix
 from .visual import render_node_horizontal, render_node_vertical
 from .graph import Graph
+from . import persistence
 
 # We should not get any numpy warnings since all operations should work
 # if the hierarchy is working properly. So if we get a warning, we want to treat it as an error.
@@ -34,8 +35,27 @@ class Hierarchy():
     - creating a cluster node will automatically remove its children from their existing parents, so you don't need to call `remove_child` on their parents beforehand.
     """
     @staticmethod
-    def load(self, filepath):
-        pass
+    def load(filepath):
+        """
+        Load an existing hierarchy.
+        """
+        h5f = tb.openFile(filepath, mode='a', title='Hierarchy')
+        root = h5f.root
+
+        h = Hierarchy()
+
+        h.ids     = root.ids
+        h.ndists  = root.ndists
+        h.centers = root.centers
+
+        h.dists   = persistence.load_dists(h5f)
+        h.g       = Graph(persistence.load_graph(h5f))
+
+        h.metric            = root._v_attrs.metric
+        h.lower_limit_scale = root._v_attrs.lower_limit_scale
+        h.upper_limit_scale = root._v_attrs.upper_limit_scale
+
+        return h
 
     def __init__(self, vecs=[], metric='euclidean', lower_limit_scale=0.9, upper_limit_scale=1.2):
         # Parameters.
@@ -48,6 +68,23 @@ class Hierarchy():
     def save(self, filepath):
         h5f = tb.openFile(filepath, mode='a', title='Hierarchy')
         root = h5f.root
+
+        # Create these arrays if necessary.
+        # Otherwise they should save themselves as they are changed.
+        for name, shape in [('ids', (0,1)), ('ndists', (0,2)), ('centers', (0,self.centers.shape[1]))]:
+            if not hasattr(root, name):
+                arr = h5f.create_earray(root, name, tb.Float64Atom(), shape=shape, expectedrows=1000000)
+                arr.append(getattr(self, name))
+
+        persistence.save_graph(h5f, self.g.mx)
+        persistence.save_dists(h5f, self.dists)
+
+        # Hierarchy metadata.
+        root._v_attrs.metric            = self.metric
+        root._v_attrs.lower_limit_scale = self.lower_limit_scale
+        root._v_attrs.upper_limit_scale = self.upper_limit_scale
+
+        h5f.close()
 
     def initialize(self, vec_A, vec_B):
         """
