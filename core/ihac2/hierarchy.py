@@ -1,11 +1,16 @@
+import os
 import logging
-from itertools import chain
 
 import numpy as np
 from scipy.spatial.distance import cdist, euclidean, cosine
 
 from core.ihac.util import split_dist_matrix
 from .visual import render_node_horizontal, render_node_vertical
+from .graph import Graph
+
+# We should not get any numpy warnings since all operations should work
+# if the hierarchy is working properly. So if we get a warning, we want to treat it as an error.
+np.seterr(invalid='raise')
 
 dist_funcs = {
     'euclidean': euclidean,
@@ -28,6 +33,10 @@ class Hierarchy():
     - any changes in a cluster's membership (e.g. via adding or removing children) must be followed up by a update_cluster to update the cluster's values, then by update_distances to update distances against that cluster (but this is done for you).
     - creating a cluster node will automatically remove its children from their existing parents, so you don't need to call `remove_child` on their parents beforehand.
     """
+    @staticmethod
+    def load(self, filepath):
+        pass
+
     def __init__(self, vecs=[], metric='euclidean', lower_limit_scale=0.9, upper_limit_scale=1.2):
         # Parameters.
         self.metric = metric
@@ -36,8 +45,13 @@ class Hierarchy():
 
         if len(vecs) > 0: self.fit(vecs)
 
+    def save(self, filepath):
+        h5f = tb.openFile(filepath, mode='a', title='Hierarchy')
+        root = h5f.root
+
     def initialize(self, vec_A, vec_B):
         """
+        Initialize a *new* hierarchy.
         A hierarchy must be initialized with two vectors.
         """
         # For keeping track of ids which can be re-used.
@@ -55,21 +69,19 @@ class Hierarchy():
         self.ndists = np.array([[0., 0.]], order='C')
 
         # Leaf node ID matrix (nx1)
-        # This maps internal ids of leaf nodes (which are resued)
-        # to a universally unique one.
+        # This maps internal ids of leaf nodes (which are resued) to a universally unique one.
         # This is used for preserving leaf input order for returning labeled clusters.
         self.ids = np.array([[0.]], order='C')
 
         # Adjacency matrix (nxn).
-        # graph[i,j] = 1 means i is parent of j
-        self.graph = np.array([[0.]], order='C')
+        self.g = Graph()
 
         # Create initial leaves and root.
         # Centers matrix (mxn).
         # It is initialized with the first vector.
-        self.centers = np.array([vec_A], order='C') # 0
-        self.create_node(vec=vec_B)                 # 1
-        self.create_node(children=[0,1])            # root, no parents
+        self.centers = np.array([vec_A], order='C') # node 0
+        self.create_node(vec=vec_B)                 # node 1
+        self.create_node(children=[0,1])            # root 2, no parents
 
     def fit(self, vecs):
         if not hasattr(self, 'dists'):
@@ -82,56 +94,66 @@ class Hierarchy():
 
     def visualize(self, dir='vertical'):
         func = render_node_vertical if dir is 'vertical' else render_node_horizontal
-        return func(self.root, child_iter=lambda n: self.get_children(n))
+        return func(self.g.root, child_iter=lambda n: self.g.get_children(n))
 
     def incorporate(self, vec):
         """
         Incorporate a new vector (leaf) into the hierarchy.
         """
-        logging.debug('\n\nIncorporating...')
-
         n = self.create_node(vec=vec)
         n_c, d = self.get_closest_leaf(n)
-        n_cp = self.get_parent(n_c)
+        n_cp = self.g.get_parent(n_c)
 
         # Try to find a parent for the new node, n.
         # If the distance d is w/in the limits of the candidate parent, n_cp,
         # just insert n there.
         while n_cp:
             # Note: after the first iteration, n_c could be a leaf *or* a cluster node.
-            if d >= self.lower_limit(n_cp) and d <= self.upper_limit(n_cp):
-                self.add_child(n_cp, n)
+            if self._incorporate(n, n_c, n_cp, d):
                 break
-
-            # Otherwise, if n forms a higher dense region with n_cp.
-            elif d < self.lower_limit(n_cp):
-                self.ins_hierarchy(n_c, n)
-                break
-
-            # Or if n forms a lower dense region with at least one of n_cp's children...
-            # I think this only makes sense on the first interation, where n_c is a leaf,
-            # so we also check cluster nodes. I'm not even sure that's true - this might be redundant.
-            for ch in [ch for ch in self.get_children(n_cp) if self.is_cluster(ch)]:
-                if self.forms_lower_dense_region(n, ch):
-                    self.ins_hierarchy(ch, n)
-                    break
-
-            # If the node has still not been incorporated,
-            # move up the hierarchy to the next cluster node.
-            # If n_cp's parent is None, we've reached the top of the hierarchy and this loop stops.
-            n_cp = self.get_parent(n_cp)
-            if n_cp is not None:
-                n_c, d = self.get_nearest_child(n_cp, n)
+            else:
+                # If the node has still not been incorporated,
+                # move up the hierarchy to the next cluster node.
+                # If n_cp's parent is None, we've reached the top of the hierarchy and this loop stops.
+                n_cp = self.g.get_parent(n_cp)
+                if n_cp is not None:
+                    n_c, d = self.get_nearest_child(n_cp, n)
 
         # If the node has still not been incorporated,
         # replace the root with a new cluster node containing both c and n.
-        parent = self.get_parent(n)
+        parent = self.g.get_parent(n)
         if parent is None:
-            self.ins_hierarchy(self.root, n)
+            self.ins_hierarchy(self.g.root, n)
 
         self.restructure(parent)
 
         return n
+
+    def _incorporate(self, n, n_c, n_cp, d):
+        """
+        Tries to find a way to integrate a new node n,
+        where n_c is the nearest node (it may be a leaf or a cluster),
+        n_cp is the parent of the nearest node, and d is the distance to n_c.
+        """
+
+        # If n fits within the limits of n_cp...
+        if d >= self.lower_limit(n_cp) and d <= self.upper_limit(n_cp):
+            self.g.add_child(n_cp, n)
+            return True
+
+        # Otherwise, if n forms a higher dense region with n_cp.
+        elif d < self.lower_limit(n_cp):
+            self.ins_hierarchy(n_c, n)
+            return True
+
+        # Or if n forms a lower dense region with at least one of n_cp's children...
+        # I think this only makes sense on the first interation, where n_c is a leaf,
+        # so we also check cluster nodes. I'm not even sure that's true - this might be redundant.
+        for ch in [ch for ch in self.g.get_children(n_cp) if self.g.is_cluster(ch)]:
+            if self.forms_lower_dense_region(n, ch):
+                self.ins_hierarchy(ch, n)
+                return True
+        return False
 
 
     # =================================================================
@@ -162,8 +184,7 @@ class Hierarchy():
             self.dists[:,id] = 0
 
             # Reset relationships for this node id.
-            self.graph[id] = 0
-            self.graph[:,id] = 0
+            self.g.reset_node(id)
 
         # Otherwise we need to expand the distance matrix and use a new id.
         else:
@@ -175,23 +196,22 @@ class Hierarchy():
             # which moves values all over the place.
             self.dists   = self._expand_mat(self.dists, True, True)
             self.ndists  = self._expand_mat(self.ndists, False, True)
-            self.graph   = self._expand_mat(self.graph, True, True)
             self.centers = self._expand_mat(self.centers, False, True)
             self.ids     = self._expand_mat(self.ids, False, True)
+            self.g.expand()
 
-        logging.debug('[CREATE]\t\t Creating {0}...'.format(id))
 
         # Add the children, if any were specified.
         if children:
-            # Clear out children's existing parents.
-            self.graph[:,children]  = 0
-            self.graph[id,children] = 1
+            logging.debug('[CREATE]\t\t Creating cluster {0} with children {1}...'.format(id, children))
+            self.g.set_parents(id, children)
 
             # Update cluster calculates the cluster's center
             # and updates distances against in,
             # which is why `update_distances` is unnecessary here.
             self.update_cluster(id)
         else:
+            logging.debug('[CREATE]\t\t Creating leaf {0}...'.format(id))
             self.centers[id] = vec
             self.update_distances(id)
 
@@ -203,9 +223,11 @@ class Hierarchy():
     def _expand_mat(self, m, expand_h, expand_v):
         # Add a column.
         if expand_h: m = np.hstack([m, np.zeros((m.shape[0], 1))])
+        #m = scipy.sparse.hstack([m, csr_matrix((m.shape[0], 1))], format='csr')
 
         # Add a row.
         if expand_v: m = np.vstack([m, np.zeros(m.shape[1])])
+        #m = scipy.sparse.vstack([m, csr_matrix((1, m.shape[1]))], format='csr')
         return m
 
     def delete_node(self, n):
@@ -216,11 +238,10 @@ class Hierarchy():
         """
         logging.debug('[DELETE]\t\t Deleting node {0}...'.format(n))
 
-        children = self.get_children(n)
+        children = self.g.get_children(n)
 
         # Remove the node from the hierarchy.
-        self.graph[n]   = 0       # row, clears children
-        self.graph[:,n] = 0       # col, clears parent
+        self.g.reset_node(n)
 
         # Make all distances against the node infinity.
         self.dists[n]   = np.inf  # row
@@ -238,33 +259,17 @@ class Hierarchy():
 
         self.available_ids.append(n)
 
-    def remove_child(self, p, ch):
-        """
-        Remove a child ch from parent p.
-        """
-        logging.debug('[REMOVE_CHILD]\t Removing {0} from {1}...'.format(ch, p))
-        self.graph[p,ch] = 0
-
-    def add_child(self, p, ch):
-        """
-        Add a new child ch to parent p.
-        This will automatically remove ch from its current parent.
-        """
-        logging.debug('[ADD_CHILD]\t Inserting {0} to {1}...'.format(p, ch))
-
-        # First, clear out any existing parents.
-        self.graph[:,ch] = 0
-        self.graph[p,ch] = 1
-
     def modify_children(self, p, remove=[], add=[]):
         """
         This batch-modifies a cluster node's children membership.
         """
         for ch in remove:
-            self.remove_child(p, ch)
+            self.g.remove_child(p, ch)
 
         for ch in add:
-            self.add_child(p, ch)
+            self.g.add_child(p, ch)
+
+        assert(self.g.get_children(p).size > 1)
 
         self.update_cluster(p)
 
@@ -280,7 +285,7 @@ class Hierarchy():
         If you are updating multiple clusters, start nested and move up.
         That is, if you have two clusters A and B, and A is a parent of B, first update B, then update A. That way A is working with the latest center for B.
         """
-        children = self.get_children(p)
+        children = self.g.get_children(p)
         self.centers[p] = np.mean([self.centers[c] for c in children], axis=0)
 
         # Since this node's center has changed,
@@ -303,15 +308,18 @@ class Hierarchy():
         The difference between merge and ins_hierarchy is that ins_hierarchy incorporates
         a node that is new (j) to the hierarchy.
         """
-        logging.debug('[INS_HIERARCHY]\t Inserting {0} into the hierarchy alongside {1}...'.format(j, i))
-
-        if not self.is_root(i):
+        if not self.g.is_root(i):
             # Remove i from its parent and replace it with
             # a new cluster node containing both i and j.
-            p = self.get_parent(i)
+            p = self.g.get_parent(i)
+
+            logging.debug('[INS_HIERARCHY]\t Inserting {0} into the hierarchy alongside {1} under {2}...'.format(j, i, p))
+
             k = self.create_node(children=[i, j])
             self.modify_children(p, add=[k])
         else:
+            logging.debug('[INS_HIERARCHY]\t Inserting {0} into the hierarchy alongside {1} under root...'.format(j, i))
+
             # Since the current root is added as a child,
             # this new node becomes the new root.
             k = self.create_node(children=[i, j])
@@ -320,23 +328,23 @@ class Hierarchy():
         """
         This replaces a cluster node with its child if that child is an only child.
         """
-        children = self.get_children(n)
+        children = self.g.get_children(n)
         if children.size == 1:
             logging.debug('[FIX]\t\t Fixing node {0}...'.format(n))
 
             c = children[0]
 
-            if not self.is_root(n):
-                p = self.get_parent(n)
+            if not self.g.is_root(n):
+                p = self.g.get_parent(n)
                 self.modify_children(p, remove=[n], add=[c])
             else:
-                assert(self.is_cluster(n))
+                assert(self.g.is_cluster(n))
                 # Separate c from its parent.
                 # It should be the root now (if n was the root).
-                self.graph[:,c] = 0
+                self.g.remove_parent(c)
 
             # Clear out n's children so they aren't also deleted.
-            self.clear_children(n) # this may be unnecessary
+            #self.clear_children(n) # this may be unnecessary
             self.delete_node(n)
 
             return True
@@ -348,11 +356,11 @@ class Hierarchy():
         i must be a cluster node.
         """
         logging.debug('[DEMOTE]\t\t Demoting {0} to under {1}...'.format(j, i))
-        assert(self.is_cluster(i))
-        p = self.get_parent(i)
+        assert(self.g.is_cluster(i))
+        p = self.g.get_parent(i)
 
         # Remove j from p.
-        self.remove_child(p, j)
+        self.g.remove_child(p, j)
 
         # Add j to i.
         self.modify_children(i, add=[j])
@@ -374,9 +382,9 @@ class Hierarchy():
         """
         logging.debug('[MERGE]\t\t Merging {0} and {1}...'.format(i, j))
 
-        p = self.get_parent(i)
+        p = self.g.get_parent(i)
         k = self.create_node(children=[i, j])
-        self.add_child(p, k)
+        self.g.add_child(p, k)
 
         # If i and j were p's only children, then it has only
         # one child (k), in which case it must be replaced by k.
@@ -394,7 +402,8 @@ class Hierarchy():
 
         # The children dist matrix is a copy, so we can overwrite it.
         c_i, c_j = split_dist_matrix(self.cdm(n), overwrite=True)
-        children = self.get_children(n)
+        children = self.g.get_children(n)
+        is_root  = self.g.is_root(n)
 
         # Create the new nodes out of the split children.
         new_nodes = []
@@ -411,17 +420,17 @@ class Hierarchy():
 
         # If n is the root node, just create a parentless cluster
         # node, which will become the new root when n is deleted.
-        if self.is_root(n):
+        if is_root:
             self.create_node(children=new_nodes)
 
         # Otherwise, replace n with the two new cluster nodes.
         else:
-            p = self.get_parent(n)
+            p = self.g.get_parent(n)
             self.modify_children(p, remove=[n], add=new_nodes)
 
         # Separate n from its children before deleting it
         # (otherwise its children will also get deleted).
-        self.clear_children(n) # this might not be necessary
+        #self.clear_children(n) # this might not be necessary
         self.delete_node(n)
 
         return new_nodes
@@ -442,12 +451,12 @@ class Hierarchy():
         """
         logging.debug('[RESTRUCTURE]\t Restructuring {0}'.format(n))
         while n:
-            if self.is_root(n):
-                misplaced = [s for s in self.get_siblings(n) if self.forms_lower_dense_region(s, i)]
+            if self.g.is_root(n):
+                misplaced = [s for s in self.g.get_siblings(n) if self.forms_lower_dense_region(s, i)]
                 for m in misplaced:
                     self.demote(n, m)
             self.repair_homogeneity(n)
-            n = self.get_parent(n)
+            n = self.g.get_parent(n)
 
     def repair_homogeneity(self, n):
         """
@@ -471,7 +480,7 @@ class Hierarchy():
         """
         logging.debug('[REPAIR]\t\t Repairing homogeneity for {0}'.format(n))
 
-        while self.get_children(n).size > 2:
+        while self.g.get_children(n).size > 2:
             i, j, d = self.get_nearest_children(n)
 
             # If n_i and n_j form a higher dense region...
@@ -480,7 +489,7 @@ class Hierarchy():
             else:
                 break
 
-        if self.get_children(n).size >= 3:
+        if self.g.get_children(n).size >= 3:
             i, j, d = self.get_furthest_nearest_children(n)
 
             # If m_i and m_j form a lower dense region,
@@ -488,7 +497,7 @@ class Hierarchy():
             if d > self.upper_limit(n):
                 k, g = self.split(n)
                 for l in [k, g]:
-                    if self.is_cluster(l): self.repair_homogeneity(l)
+                    if self.g.is_cluster(l): self.repair_homogeneity(l)
 
 
     # =================================================================
@@ -505,7 +514,7 @@ class Hierarchy():
 
         # Calculate if necessary.
         if d == 0:
-            d = self.dist_funcs[self.metric](self.centers[i], self.centers[j])
+            d = dist_funcs[self.metric](self.centers[i], self.centers[j])
             self.dists[idx] = d
         return d
 
@@ -529,7 +538,7 @@ class Hierarchy():
         Note that this is only a _view_ (i.e. a copy), thus any modifications you make are
         not propagated to the original matrix.
         """
-        children = self.get_children(i)
+        children = self.g.get_children(i)
         rows, cols = zip(*[([ch], ch) for ch in children])
         return self.dists[rows, cols]
 
@@ -541,61 +550,16 @@ class Hierarchy():
         # Build a view of the master distance matrix showing only
         # n's distances from the leaves of this hierarchy,
         # since we're not looking at cluster nodes.
-        leaves = self.leaves[self.leaves != n]
-        dist_mat = self.dists[[[n]], leaves][0]
+        leaves = self.g.leaves
+        dist_mat = self.dists[[[n]], leaves[leaves != n]][0]
         i = np.argmin(dist_mat)
         return leaves[i], dist_mat[i]
-
-    def is_cluster(self, n):
-        """
-        A cluster node has at least one child.
-        """
-        return self.get_children(n).size > 0
-
-    def get_parent(self, ch):
-        if not np.any(self.graph[:,ch] > 0):
-            return None
-        return np.argmax(self.graph[:,ch])
-
-    def get_children(self, n):
-        """
-        Get the children of a node.
-        This searches the node's row in the adjacency matrix
-        for node ids where the relationship is 1 (parent of).
-        """
-        return np.where(self.graph[n] == 1)[0]
-
-    def get_leaves(self, n):
-        """
-        Get all leaves of a node.
-        """
-        if not self.is_cluster(n):
-            return [n]
-        else:
-            groups = [self.get_leaves(ch) for ch in self.get_children(n)]
-            return list(chain.from_iterable(groups))
-
-    @property
-    def leaves(self):
-        """
-        Get all leaves in the hierarchy.
-        A leaf node is one with no children
-        (that is, it's row is entirely 0).
-        """
-        return np.where(np.all(self.graph == 0, axis=1))[0]
-
-    def get_siblings(self, n):
-        p = self.get_parent(n)
-        if p is not None:
-            children = self.get_children(p)
-            return [ch for ch in children if ch != n]
-        return []
 
     def get_nearest_child(self, p, n):
         """
         Get the nearest child to n in the cluster node p.
         """
-        children = self.get_children(p)
+        children = self.g.get_children(p)
 
         # Build a view of the master distance matrix showing only
         # n's distances with children of this cluster node.
@@ -608,7 +572,7 @@ class Hierarchy():
         Get the n's closest pair of children.
         """
         dist_mat = self.cdm(n)
-        children = self.get_children(n)
+        children = self.g.get_children(n)
 
         # Fill the diagonal with nan. Otherwise, they are all 0,
         # since distance(n_i,n_i) = 0.
@@ -627,7 +591,7 @@ class Hierarchy():
         """
         The pair of children of n having the largest nearest distance.
         """
-        children = self.get_children(n)
+        children = self.g.get_children(n)
 
         # Get the largest of the nearest distances.
         max = self.get_nearest_distances(n).max()
@@ -647,19 +611,13 @@ class Hierarchy():
         Returns the most representative child of node n,
         Here we are just taking the child closest to the cluster's center.
         """
-        children = self.get_children(n)
+        children = self.g.get_children(n)
         dists = self.dists[n,children]
         i = np.argmax(dists)
         rep = children[i]
-        if self.is_cluster(rep):
+        if self.g.is_cluster(rep):
             return self.get_representative(rep)
         return rep
-
-    def clear_children(self, n):
-        """
-        Separates n from its children.
-        """
-        self.graph[n] = 0
 
     @property
     def nodes(self):
@@ -668,18 +626,6 @@ class Hierarchy():
         These are all nodes that do not have infinite distance.
         """
         return np.where(np.all(self.dists != np.inf, axis=1))[0].tolist()
-
-    @property
-    def root(self):
-        """
-        Gets the root node.
-        The root node is the node that has no parents,
-        that is, its column is all 0.
-        """
-        return np.where(np.all(self.graph == 0, axis=0))[0][0]
-
-    def is_root(self, id):
-        return np.all(self.graph[:,id] == 0)
 
     def upper_limit(self, n):
         """
@@ -702,7 +648,6 @@ class Hierarchy():
         return self.lower_limit_scale * (self.ndists[n][0] - self.ndists[n][1])
 
     def forms_lower_dense_region(self, A, C):
-        # TO DO fix this
         """
         Let C be a homogenous cluster.
         Given a new point A, let B be C's cluster member that is the nearest
@@ -713,7 +658,7 @@ class Hierarchy():
             A => new node
             B => nearest_child
         """
-        assert(self.is_cluster(C))
+        assert(self.g.is_cluster(C))
         nearest_child, d = self.get_nearest_child(C, A)
         return d > self.upper_limit(C)
 
@@ -733,7 +678,7 @@ class Hierarchy():
         with density higher than the given threshold
         and taking the leaves of the resulting hierarchy
         """
-        clusters = [clus for clus in self.snip([self.root], distance_threshold)]
+        clusters = [clus for clus in self.snip([self.g.root], distance_threshold)]
 
         # Return labels in the order that the vectors were inputted,
         # which is the same as the order of nodes by their uuids,
@@ -754,7 +699,7 @@ class Hierarchy():
         for n in nodes:
             # Reached the end of the branch,
             # just take the leaf node as a cluster.
-            if not self.is_cluster(n):
+            if not self.g.is_cluster(n):
                 yield [n]
                 continue
 
@@ -763,8 +708,8 @@ class Hierarchy():
             else:
                 ndists = self.get_nearest_distances(n)
                 if np.mean(ndists) <= distance_threshold:
-                    yield self.get_leaves(n)
+                    yield self.g.get_leaves(n)
                     continue
 
             # Otherwise, keep going down the branch.
-            yield from self.snip(self.get_children(n), distance_threshold)
+            yield from self.snip(self.g.get_children(n), distance_threshold)
