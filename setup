@@ -17,6 +17,10 @@ function setup_dependencies {
         brew install gcc
         brew install gfortran
 
+        # For pytables
+        brew tap homebrew/science
+        brew install hdf5
+
     # Otherwise, assume Linux...
     else
         # Various python deps and also scipy deps.
@@ -44,6 +48,7 @@ function setup_virtualenv {
     # Setup the Python 3.3 virtualenv.
     virtualenv -p `which python3` $ARGOS_ENV --no-site-packages
     source $ARGOS_ENV/bin/activate
+    pip install numpy cython numexpr
     pip install -r requirements.txt
 }
 
