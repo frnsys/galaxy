@@ -10,7 +10,7 @@ from nltk.stem.wordnet import WordNetLemmatizer
 from scipy.spatial.distance import cosine
 
 from core.vectorize import vectorize
-from core.ihac.util import mirror_upper, triu_index
+from .util import mirror_upper, triu_index
 from eval.data import load_articles
 
 
