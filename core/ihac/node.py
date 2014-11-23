@@ -139,6 +139,19 @@ class ClusterNode(Node):
         rows, cols = zip(*[([ch.id], ch.id) for ch in self.children])
         return self.mdm[rows, cols]
 
+    @property
+    def representative(self):
+        """
+        Returns the most representative child,
+        Here we are just taking the child closest to the cluster's center.
+        """
+        dists = [self.hierarchy.distance(child, self.center) for child in self.children]
+        i = np.argmax(dists)
+        rep = self.children[i]
+        if type(rep) is ClusterNode:
+            return rep.representative
+        return rep
+
     def add_child(self, node):
         logging.debug('[ADD_CHILD]\t\t Inserting {0} to {1}...'.format(node.id, self.id))
 

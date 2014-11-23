@@ -1,4 +1,3 @@
-import sys
 import logging
 from itertools import chain
 
@@ -45,10 +44,10 @@ class Hierarchy():
         # Initialize all the other properties.
         node_A = LeafNode(id=0, vec=vec_A)
         self.dists = np.array([[0.]], order='C')
-        self.leaves = [node_A]
         self.nodes = [node_A]
 
         node_B = self.create_node(LeafNode, vec=vec_B)
+        self.leaves = [node_A, node_B]
 
         # Create an initial cluster node as the root.
         self.root = self.create_node(ClusterNode, children=[node_A, node_B])
