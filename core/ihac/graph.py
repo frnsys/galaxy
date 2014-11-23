@@ -14,6 +14,9 @@ class Graph():
         Initialize the graph with an adjacency matrix.
         This should be a scipy sparse csr_matrix.
         """
+        # NOTE: for now a csr_matrix is used for persistence,
+        # but we are using a normal numpy array internally.
+        # i'm still trying to figure out the most appropriate sparse matrix type for the job.
         if mx is not None:
             assert mx.__class__ == csr_matrix, 'The graph adjacency matrix must be a csr_matrix.'
             self.mx = mx.toarray()

@@ -7,8 +7,7 @@ from scipy.cluster.hierarchy import linkage, fcluster
 import numpy as np
 from sklearn.metrics.pairwise import pairwise_distances
 
-from core.ihac import IHAC
-from core.ihac.node import Node
+from core.ihac.hierarchy import Hierarchy
 
 from scipy import argmax
 from core.digbc import DocumentIndexGraphClusterer
@@ -69,13 +68,13 @@ def ihac(vecs, metric, threshold, lower_limit_scale, upper_limit_scale, weights)
     """
     Convenience method for clustering with IHAC.
     """
-    Node.lower_limit_scale = lower_limit_scale
-    Node.upper_limit_scale = upper_limit_scale
 
     vecs = _weight_vectors(vecs, weights)
 
-    model = IHAC(metric=metric)
-    model.fit(vecs.toarray())
+    model = Hierarchy(vecs=vecs.toarray(),
+                      metric=metric,
+                      lower_limit_scale=lower_limit_scale,
+                      upper_limit_scale=upper_limit_scale)
     clusters, labels = model.clusters(distance_threshold=threshold, with_labels=True)
     return labels
 
