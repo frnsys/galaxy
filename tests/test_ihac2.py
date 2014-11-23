@@ -450,100 +450,101 @@ class GraphTest(unittest.TestCase):
                            metric='euclidean',
                            lower_limit_scale=0.1,
                            upper_limit_scale=1.5)
+        self.g = self.h.g
 
         self.extra_vecs = [[0], [20]]
         children = [self.h.create_node(vec=vec) for vec in self.extra_vecs]
         n = self.h.create_node(children=children)
-        self.h.g.add_child(2, n)
+        self.g.add_child(2, n)
 
         self.leaves   = [0,1,3,4]
         self.clusters = [2,5]
 
     def test_is_cluster(self):
         for clus in self.clusters:
-            self.assertTrue(self.h.g.is_cluster(clus))
+            self.assertTrue(self.g.is_cluster(clus))
 
         for l in self.leaves:
-            self.assertFalse(self.h.g.is_cluster(l))
+            self.assertFalse(self.g.is_cluster(l))
 
     def test_is_root(self):
         clus = self.clusters[0]
-        self.assertTrue(self.h.g.is_root(clus))
-        self.assertFalse(self.h.g.is_root(self.clusters[1]))
+        self.assertTrue(self.g.is_root(clus))
+        self.assertFalse(self.g.is_root(self.clusters[1]))
 
         for l in self.leaves:
-            self.assertFalse(self.h.g.is_root(l))
+            self.assertFalse(self.g.is_root(l))
 
-        self.assertEqual(clus, self.h.g.root)
+        self.assertEqual(clus, self.g.root)
 
         # Try making a new root.
         # If the existing root becomes a child, its parent
         # is the new root.
         new_root = self.h.create_node(children=[clus, 4])
 
-        self.assertTrue(self.h.g.is_root(new_root))
-        self.assertFalse(self.h.g.is_root(clus))
-        self.assertEqual(new_root, self.h.g.root)
+        self.assertTrue(self.g.is_root(new_root))
+        self.assertFalse(self.g.is_root(clus))
+        self.assertEqual(new_root, self.g.root)
 
     def test_leaves(self):
-        assert_array_equal(self.h.g.leaves, [0,1,3,4])
+        assert_array_equal(self.g.leaves, [0,1,3,4])
 
     def test_nodes(self):
         assert_array_equal(self.h.nodes, [0,1,2,3,4,5])
 
     def test_get_parent(self):
         for n in [0,1,5]:
-            assert_array_equal(self.h.g.get_parent(n), 2)
+            assert_array_equal(self.g.get_parent(n), 2)
         for n in [3,4]:
-            assert_array_equal(self.h.g.get_parent(n), 5)
-        assert_array_equal(self.h.g.get_parent(2), None)
+            assert_array_equal(self.g.get_parent(n), 5)
+        assert_array_equal(self.g.get_parent(2), None)
 
     def test_get_children(self):
-        assert_array_equal(self.h.g.get_children(2), [0,1,5])
-        assert_array_equal(self.h.g.get_children(5), [3,4])
+        assert_array_equal(self.g.get_children(2), [0,1,5])
+        assert_array_equal(self.g.get_children(5), [3,4])
 
         for l in self.leaves:
-            assert_array_equal(self.h.g.get_children(l), [])
+            assert_array_equal(self.g.get_children(l), [])
 
     def test_reset_node(self):
-        self.h.g.reset_node(2)
-        assert_array_equal(self.h.g.get_children(2), [])
+        self.g.reset_node(2)
+        assert_array_equal(self.g.get_children(2), [])
 
     def test_get_siblings(self):
-        assert_array_equal(self.h.g.get_siblings(0), [1,5])
-        assert_array_equal(self.h.g.get_siblings(1), [0,5])
-        assert_array_equal(self.h.g.get_siblings(5), [0,1])
-        assert_array_equal(self.h.g.get_siblings(2), [])
-        assert_array_equal(self.h.g.get_siblings(4), [3])
-        assert_array_equal(self.h.g.get_siblings(3), [4])
+        assert_array_equal(self.g.get_siblings(0), [1,5])
+        assert_array_equal(self.g.get_siblings(1), [0,5])
+        assert_array_equal(self.g.get_siblings(5), [0,1])
+        assert_array_equal(self.g.get_siblings(2), [])
+        assert_array_equal(self.g.get_siblings(4), [3])
+        assert_array_equal(self.g.get_siblings(3), [4])
 
     def test_get_leaves(self):
-        assert_array_equal(self.h.g.get_leaves(0), [0])
-        assert_array_equal(self.h.g.get_leaves(1), [1])
-        assert_array_equal(self.h.g.get_leaves(2), [0,1,3,4])
-        assert_array_equal(self.h.g.get_leaves(5), [3,4])
+        assert_array_equal(self.g.get_leaves(0), [0])
+        assert_array_equal(self.g.get_leaves(1), [1])
+        assert_array_equal(self.g.get_leaves(2), [0,1,3,4])
+        assert_array_equal(self.g.get_leaves(5), [3,4])
 
     def test_add_child(self):
         n = self.h.create_node(vec=[80])
-        self.h.g.add_child(2, n)
+        self.g.add_child(2, n)
 
-        self.assertEqual(self.h.g.get_parent(n), 2)
-        self.assertTrue(n in self.h.g.get_children(2))
+        self.assertEqual(self.g.get_parent(n), 2)
+        self.assertTrue(n in self.g.get_children(2))
 
         # Changing children should automatically remove it from its previous parent.
-        self.h.g.add_child(5, n)
-        self.assertNotEqual(self.h.g.get_parent(n), 2)
-        self.assertEqual(self.h.g.get_parent(n), 5)
-        self.assertFalse(n in self.h.g.get_children(2))
-        self.assertTrue(n in self.h.g.get_children(5))
+        self.g.add_child(5, n)
+        self.assertNotEqual(self.g.get_parent(n), 2)
+        self.assertEqual(self.g.get_parent(n), 5)
+        self.assertFalse(n in self.g.get_children(2))
+        self.assertTrue(n in self.g.get_children(5))
 
     def test_remove_child(self):
         n = self.h.create_node(vec=[80])
-        self.h.g.add_child(2, n)
+        self.g.add_child(2, n)
 
-        self.assertEqual(self.h.g.get_parent(n), 2)
-        self.assertTrue(n in self.h.g.get_children(2))
-        self.h.g.remove_child(2, n)
+        self.assertEqual(self.g.get_parent(n), 2)
+        self.assertTrue(n in self.g.get_children(2))
+        self.g.remove_child(2, n)
 
-        self.assertNotEqual(self.h.g.get_parent(n), 2)
-        self.assertFalse(n in self.h.g.get_children(2))
+        self.assertNotEqual(self.g.get_parent(n), 2)
+        self.assertFalse(n in self.g.get_children(2))
