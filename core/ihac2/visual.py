@@ -1,43 +1,5 @@
 import itertools
-import click
 from io import StringIO
-
-# http://stackoverflow.com/a/17462524/1097920
-def block_width(block):
-    try:
-        return block.index('\n')
-    except ValueError:
-        return len(block)
-
-
-def stack_str_blocks(blocks):
-    """Takes a list of multiline strings, and stacks them horizontally.
-
-    For example, given 'aaa\naaa' and 'bbbb\nbbbb', it returns
-    'aaa bbbb\naaa bbbb'.  As in:
-
-    'aaa  +  'bbbb   =  'aaa bbbb
-     aaa'     bbbb'      aaa bbbb'
-
-    Each block must be rectangular (all lines are the same length), but blocks
-    can be different sizes.
-    """
-    builder = []
-    block_lens = [block_width(bl) for bl in blocks]
-    split_blocks = [bl.split('\n') for bl in blocks]
-
-    for line_list in itertools.zip_longest(*split_blocks, fillvalue=None):
-        for i, line in enumerate(line_list):
-            if line is None:
-                builder.append(' ' * block_lens[i])
-            else:
-                builder.append(line)
-            if i != len(line_list) - 1:
-                builder.append(' ')  # Padding
-        builder.append('\n')
-
-    return ''.join(builder[:-1])
-
 
 def render_node_vertical(node, child_iter=lambda n: n.children, text_str=lambda n: str(n)):
     children = list(child_iter(node))
@@ -97,3 +59,40 @@ def render_node_horizontal(node, prefix='', child_iter=lambda n: n.children, tex
         )
 
     return buf.getvalue()
+
+
+# http://stackoverflow.com/a/17462524/1097920
+def block_width(block):
+    try:
+        return block.index('\n')
+    except ValueError:
+        return len(block)
+
+
+def stack_str_blocks(blocks):
+    """Takes a list of multiline strings, and stacks them horizontally.
+
+    For example, given 'aaa\naaa' and 'bbbb\nbbbb', it returns
+    'aaa bbbb\naaa bbbb'.  As in:
+
+    'aaa  +  'bbbb   =  'aaa bbbb
+     aaa'     bbbb'      aaa bbbb'
+
+    Each block must be rectangular (all lines are the same length), but blocks
+    can be different sizes.
+    """
+    builder = []
+    block_lens = [block_width(bl) for bl in blocks]
+    split_blocks = [bl.split('\n') for bl in blocks]
+
+    for line_list in itertools.zip_longest(*split_blocks, fillvalue=None):
+        for i, line in enumerate(line_list):
+            if line is None:
+                builder.append(' ' * block_lens[i])
+            else:
+                builder.append(line)
+            if i != len(line_list) - 1:
+                builder.append(' ')  # Padding
+        builder.append('\n')
+
+    return ''.join(builder[:-1])
