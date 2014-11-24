@@ -91,7 +91,7 @@ def progress_bar(percent, elapsed_time):
         countdown = '{:8.2f}sec'.format(remaining)
 
     width = 100
-    info = '{0:8.4f} {1}'.format(percent, countdown)
+    info = '{0:8.3f}% {1}'.format(percent, countdown)
     sys.stdout.write('[{0}] {1}'.format(' ' * width, info))
     sys.stdout.flush()
     sys.stdout.write('\b' * (width+len(info)+2))

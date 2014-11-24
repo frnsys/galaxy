@@ -45,14 +45,9 @@ def build_vectors(articles, savepath=None):
 
     pub_vecs, bow_vecs, concept_vecs = zip(*vecs)
 
-    #for a in progress(articles, 'Building article vectors...'):
-        #pub_vecs.append(np.array([a.published]))
-        #bow_vecs.append(a.vectors)
-        #concept_vecs.append(a.concept_vectors)
-
-    pub_vecs     = normalize(csr_matrix(pub_vecs), copy=False)
-    bow_vecs     = normalize(csr_matrix(bow_vecs), copy=False)
-    concept_vecs = normalize(csr_matrix(concept_vecs), copy=False)
+    pub_vecs     = normalize(csr_matrix(np.array(pub_vecs)), copy=False)
+    bow_vecs     = normalize(csr_matrix(np.array(bow_vecs)), copy=False)
+    concept_vecs = normalize(csr_matrix(np.array(concept_vecs)), copy=False)
 
     print('Merging vectors...')
     vecs = hstack([pub_vecs, bow_vecs, concept_vecs])
