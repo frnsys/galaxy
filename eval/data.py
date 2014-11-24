@@ -10,6 +10,7 @@ from dateutil.parser import parse
 
 from core.models import Article
 from eval.util import progress
+from eval.parallel import parallelize
 from eval.unicodefixer import fix_bad_unicode
 
 
@@ -34,17 +35,23 @@ def load_articles(datapath, with_labels=True, as_incremental=False):
 
     return articles
 
+def build_vector(article):
+    return np.array([article.published]), article.vectors, article.concept_vectors
 
 def build_vectors(articles, savepath=None):
-    bow_vecs, concept_vecs, pub_vecs, = [], [], []
+    print('Building article vectors...')
+    args_set = [[a] for a in articles]
+    vecs = parallelize(build_vector, args_set)
 
-    for a in progress(articles, 'Building article vectors...'):
-        pub_vecs.append(np.array([a.published]))
-        bow_vecs.append(a.vectors)
-        concept_vecs.append(a.concept_vectors)
+    pub_vecs, bow_vecs, concept_vecs = zip(*vecs)
 
-    pub_vecs = normalize(csr_matrix(pub_vecs), copy=False)
-    bow_vecs = normalize(csr_matrix(bow_vecs), copy=False)
+    #for a in progress(articles, 'Building article vectors...'):
+        #pub_vecs.append(np.array([a.published]))
+        #bow_vecs.append(a.vectors)
+        #concept_vecs.append(a.concept_vectors)
+
+    pub_vecs     = normalize(csr_matrix(pub_vecs), copy=False)
+    bow_vecs     = normalize(csr_matrix(bow_vecs), copy=False)
     concept_vecs = normalize(csr_matrix(concept_vecs), copy=False)
 
     print('Merging vectors...')
@@ -82,5 +89,5 @@ def process_article(a):
             a[key] = parse(a[key]['$date'])
 
     # There are a lot of encoding bugs, fix them.
-    a['text'] = fix_bad_unicode(a['text'])
+    #a['text'] = fix_bad_unicode(a['text'])
     return Article(**a)
