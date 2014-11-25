@@ -1,8 +1,8 @@
 import pytz
 from datetime import datetime
 
-from core.vectorize import vectorize
-from core import concepts
+from .vectorize import vectorize
+from . import concepts
 
 epoch = datetime.utcfromtimestamp(0).replace(tzinfo=pytz.UTC)
 
@@ -15,7 +15,7 @@ class Article():
     def concepts(self):
         if not hasattr(self, '_concepts'):
             text = ' '.join([self.title, self.text])
-            self._concepts = concepts.concepts(text, strategy='stanford')
+            self._concepts = concepts.concepts(text, strategy='stanford') + concepts.concepts(text, strategy='spotlight') + concepts.keywords(text)
         return self._concepts
 
     @property

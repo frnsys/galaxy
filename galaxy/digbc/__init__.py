@@ -2,17 +2,14 @@ import networkx as nx
 import numpy as np
 from copy import copy
 import string
-import itertools
 
 from nltk.tokenize import sent_tokenize, word_tokenize
 from nltk.corpus import stopwords
 from nltk.stem.wordnet import WordNetLemmatizer
+
+from ..vectorize import vectorize
 from scipy.spatial.distance import cosine
-
-from core.vectorize import vectorize
-from .util import mirror_upper, triu_index
-from eval.data import load_articles
-
+from scipy import argmax
 
 LEMMATIZER = WordNetLemmatizer()
 
@@ -60,7 +57,7 @@ class Document(object):
     def get_length(self, sent_n):
         return len(self.sentences[sent_n].sentence)
 
-    def weighted_length(self):
+    def get_normalization_weight(self):
         if not self.wlength:
             wlengths = [self.get_weight(i) * self.get_length(i) for i in range(len(self.sentences))]
             self.wlength = sum(wlengths)
@@ -68,27 +65,38 @@ class Document(object):
         return self.wlength
 
 
-class DocumentIndexGraph(nx.DiGraph):
+class DocumentIndexGraphClusterer(nx.DiGraph):
     """
-    Document Index Graph structure, as defined on the paper
-    "Efficient Phrase-Based Document Indexing for Web Document Clustering"
+    Document Index Graph structure
 
-    alpha: similarity blend coefficient, weight of phrase-based component
+    and clustering algorithm
+    as defined on the paper
+
+    "Web Document Clustering Using Document Index Graph"
     """
-    def __init__(self, alpha=0.7):
-        super(DocumentIndexGraph, self).__init__()
-        self.alpha = alpha
+    def __init__(self, threshold=0.10, hard=False):
+        super(DocumentIndexGraphClusterer, self).__init__()
         self.document_tables = {}
         self.indexed_docs = []
         self.matching_phrases = {}
         self.phrase_frequencies = {}
-        self.sims = None
+        # clustering attributes
+        self.formed_clusters = []
+        self.phrase_freqs = {} # counts total occurrences of phrases in cluster
+        self.phrase_doc_freqs = {} # counts number of docs containing the phrase in cluster
+        self.threshold = threshold
+        self.hard = hard
+
 
     def index_document(self, plain_text):
         doc_id = len(self.indexed_docs)
         document = Document(doc_id, plain_text)
         self.indexed_docs.append(document)
 
+        # for efficiency of implementation we perform the
+        # following tasks simultaneously:
+        #  1. store new doc in DIG structure
+        #  2. calculate distances to existing clusters
         for n, rsent in enumerate(document.sentences):
             sent, level = rsent.sentence, rsent.level
             previous_term = sent[0]
@@ -102,25 +110,19 @@ class DocumentIndexGraph(nx.DiGraph):
             doc_table.setdefault(doc_id, DocumentTableEntry())
             doc_table[doc_id].term_freqs[level] += 1
 
-        # enlarge similarity matrix to hold distances to new doc
-        if self.sims is None:
-            self.sims = np.array([[0.]], order='C')
-        else:
-            sm = self.sims
-            sm = np.hstack([sm, -np.ones((sm.shape[0], 1))])
-            self.sims = np.vstack([sm, -np.ones(sm.shape[1])])
-            np.fill_diagonal(self.sims, 0)
-
-        return document
+        self.assign_cluster(document)
 
     def get_doc(self, doc_id):
         return self.indexed_docs[doc_id]
+
+    def get_cluster(self, cluster_id):
+        return self.formed_clusters[cluster_id]
 
     def add_edge(self, doc_id, position, term1, term2, level):
         # position is a tuple (sent_n, term_n) indicating
         # the sentence number and term number where the occurence was found
         edge = (term1, term2)
-        super(DocumentIndexGraph, self).add_edge(*edge)
+        super(DocumentIndexGraphClusterer, self).add_edge(*edge)
         doc_table = self.get_doc_table(term1)
 
         # retrieve list of docs sharing this edge
@@ -191,64 +193,111 @@ class DocumentIndexGraph(nx.DiGraph):
             w_b = doc_b.get_weight(sent_n_b)
             numerator += (pmatch.g() * (f_a * w_a + f_b * w_b)) ** 2
 
-        return (numerator ** 0.5) / (doc_a.weighted_length() + doc_b.weighted_length())
+        return (numerator ** 0.5) / (doc_a.get_normalization_weight() + doc_b.get_normalization_weight())
 
     def get_sim_t(self, doc_a, doc_b):
         return cosine(doc_a.tfidf, doc_b.tfidf)
 
-    def get_sim_blend(self, doc_a_id, doc_b_id):
-        row, col = triu_index(doc_a_id, doc_b_id)
-        if self.sims[row, col] == -1.0:
-            doc_a = self.get_doc(doc_a_id)
-            doc_b = self.get_doc(doc_b_id)
-            sim_p = self.get_sim_p(doc_a, doc_b)
-            sim_t = self.get_sim_t(doc_a, doc_b)
-            sim_blend = self.alpha * sim_p + (1 - self.alpha) * sim_t
-            self.sims[row, col] = sim_blend
-        # print("(%d, %d) -> %.4f" % (doc_a_id, doc_b_id, sim_blend))
-        return self.sims[row, col]
+    def get_blended_similarity(self, doc_a_id, doc_b_id, alpha=0.7):
+        doc_a = self.get_doc(doc_a_id)
+        doc_b = self.get_doc(doc_b_id)
+        sim_p = self.get_sim_p(doc_a, doc_b)
+        sim_t = self.get_sim_t(doc_a, doc_b)
 
-    def get_distance(self, doc_a_id, doc_b_id):
+        return alpha * sim_p + (1 - alpha) * sim_t
+
+    # Clustering methods
+    def get_cluster_sim(self, cluster, doc):
+        numerator = 0.0
+        pmatches = []
+
+        for doc_b_id in cluster.doc_ids:
+            pmatches += self.get_matching_phrases(doc.id, doc_b_id)
+
+        for pmatch in pmatches:
+            phrase = pmatch.phrase
+
+            f_d = self.get_phrase_freq(doc.id, phrase)
+            sent_n_d = pmatch.positions[doc.id][0]
+            w_d = doc.get_weight(sent_n_d)
+
+            f_c = self.get_cluster_phrase_freq(cluster, phrase)
+            d_id = pmatch.doc_a.id if pmatch.doc_a.id != doc.id else pmatch.doc_b.id
+            sent_n_c = pmatch.positions[d_id][0]
+            w_c = self.get_doc(d_id).get_weight(sent_n_c)
+
+            doc_freq = self.get_cluster_phrase_doc_freq(cluster, phrase)
+
+            ratio = doc_freq * 1.0 / len(cluster.doc_ids)
+
+            numerator += (pmatch.g() * (ratio * f_c * w_c + f_d * w_d)) ** 2
+
+        return (numerator ** 0.5) / (cluster.get_normalization_weight() + doc.get_normalization_weight())
+
+    def get_cluster_phrase_freq(self, cluster, phrase):
+        if not tuple(phrase) in self.phrase_freqs[cluster.id]:
+            self._init_cluster_phrase_freqs(cluster, phrase)
+
+        return self.phrase_freqs[cluster.id][tuple(phrase)]
+
+    def get_cluster_phrase_doc_freq(self, cluster, phrase):
+        if not tuple(phrase) in self.phrase_doc_freqs[cluster.id]:
+            self._init_cluster_phrase_freqs(cluster, phrase)
+
+        return self.phrase_doc_freqs[cluster.id][tuple(phrase)]
+
+    def _init_cluster_phrase_freqs(self, cluster, phrase):
         """
-            Returns a distance based on
-            blended similarity between the given docs
+            Initializes both frequency and document frequency
+            for given phrase in cluster
         """
-        # TODO: figure out the best way of doing this,
-        # May be this can help:
-        # http://stats.stackexchange.com/questions/36152/converting-similarity-matrix-to-euclidean-distance-matrix)
+        phrase_freq = 0
+        phrase_doc_freq = 0
+        for doc_id in cluster.doc_ids:
+            dfreq = self.get_phrase_freq(doc_id, phrase)
+            if dfreq:
+                phrase_freq += dfreq
+                phrase_doc_freq += 1
 
-        sim = self.get_sim_blend(doc_a_id, doc_b_id)
-        # return 1.0 / (1 + sim)
+        self.phrase_freqs[cluster.id][tuple(phrase)] = phrase_freq
+        self.phrase_doc_freqs[cluster.id][tuple(phrase)] = phrase_doc_freq
 
-        return 1.0 - sim
+    def assign_cluster(self, document):
+        good_clusters = []
+        best_similarities = []
 
-    def get_distance_matrix(self, normalized=False):
-        n_docs = len(self.indexed_docs)
-        dists = -1.0 * np.ones((n_docs, n_docs))
-        pairs = itertools.product(range(n_docs),range(n_docs))
-        pairs = [(x, y) for (x, y) in pairs if x < y]
+        # calculate similarities and add to similar clusters
+        for cluster in self.formed_clusters:
+            sim_to_cluster = self.get_cluster_sim(cluster, document)
+            # print("%.4f" % sim_to_cluster)
+            if sim_to_cluster > self.threshold:
+                good_clusters.append(cluster)
+                best_similarities.append(sim_to_cluster)
 
-        for (x, y) in pairs:
-            dists[x, y] = self.get_distance(x, y)
+        # if no similar cluster found, create new
+        if not good_clusters:
+            self.create_cluster(document)
+        else:
+            if self.hard:
+                max_i = argmax(best_similarities)
+                good_clusters = [good_clusters[max_i]]
+            for cluster in good_clusters:
+                self.add_doc_to_cluster(document, cluster)
 
-        if normalized:
-            # TODO: distances could be normalized to be within [0, 1]
-            #  interval. We must figure out the maximum possible similarity
-            #  for that, or use the maximum seen (but we would loose incrementality)
-            raise NotImplementedError
+    def create_cluster(self, first_doc):
+        new_cluster_id = len(self.formed_clusters)
+        self.formed_clusters.append(Cluster(id=new_cluster_id, first_doc=first_doc))
+        self.phrase_freqs[new_cluster_id] = {}
+        self.phrase_doc_freqs[new_cluster_id] = {}
 
-        return dists
-
-    def get_similarity_matrix(self):
-        # This ensures all sims are calculated
-        # (sims calculation is lazy)
-        n_docs = len(self.indexed_docs)
-        pairs = itertools.product(range(n_docs),range(n_docs))
-        for (x, y) in pairs:
-            self.get_sim_blend(x, y)
-
-        return self.sims
-
+    def add_doc_to_cluster(self, document, cluster):
+        cluster.add_doc(document)
+        # update phrase_freqs and phrase_doc_freqs where needed
+        for phrase in self.phrase_freqs[cluster.id]:
+            dfreq = self.get_phrase_freq(document.id, phrase)
+            if dfreq:
+                self.phrase_freqs[cluster.id][phrase] += dfreq
+                self.phrase_doc_freqs[cluster.id][phrase] += 1
 
 
 class DocumentTableEntry(object):
@@ -297,42 +346,30 @@ class PhraseMatch(object):
         s_b = len(doc_b.sentences[self.positions[doc_b.id][0]].sentence)
         return (2.0 * l_i / (s_a + s_b)) ** gamma
 
-def simple_demo():
-    """
-        Simple demonstration using the example
-        from the paper
-    """
+
+class Cluster(object):
+    """docstring for Cluster"""
+    def __init__(self, id, first_doc):
+        self.id = id
+        self.doc_ids = [first_doc.id]
+        self.norm_weight = first_doc.get_normalization_weight()
+
+    def add_doc(self, doc):
+        self.doc_ids.append(doc.id)
+        self.norm_weight += doc.get_normalization_weight()
+
+    def get_normalization_weight(self):
+        return self.norm_weight
+
+
+if __name__ == '__main__':
     docs = ["river rafting. mild river rafting. river rafting trips",
             "wild river adventures. river rafting vacation plan",
             "fishin trips. fishing vacation plan. booking fishing trips. river fishing"]
 
-    dig = DocumentIndexGraph()
+    dig = DocumentIndexGraphClusterer()
     for doc in docs:
         dig.index_document(doc)
 
-    print([dig.get_sim_blend(a, b) for (a, b) in [(0, 1), (1, 2), (0, 2)]])
-
-
-def dist_matrix_demo():
-    """
-        Another demonstration using real
-        article data and generating
-        a distance matrix
-    """
-    N = 10
-    docs, true_labels = load_articles('../../eval/data/event/handpicked.json')
-
-    docs = docs[:N]
-    docs = [d.text for d in docs]
-    dig = DocumentIndexGraph()
-    for doc in docs:
-        dig.index_document(doc)
-
-    dists = dig.get_distance_matrix()
-
-    print(dists)
-
-
-if __name__ == '__main__':
-    # simple_demo()
-    dist_matrix_demo()
+    import ipdb; ipdb.set_trace()
+    # print([dig.get_blended_similarity(a, b) for (a, b) in [(0, 1), (1, 2), (0, 2)]])

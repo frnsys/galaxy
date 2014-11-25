@@ -17,7 +17,7 @@ from nltk.tokenize import sent_tokenize, word_tokenize
 from nltk.stem.wordnet import WordNetLemmatizer
 from nltk.corpus import stopwords
 
-from conf import APP
+from . import conf
 
 class Tokenizer():
     """
@@ -30,7 +30,7 @@ class Tokenizer():
         return tokenize(doc, lemmr=self.lemmr)
 
 
-PIPELINE_PATH = os.path.expanduser(os.path.join(APP['PIPELINE_PATH'], 'pipeline.pickle'))
+PIPELINE_PATH = os.path.expanduser(os.path.join(conf.PIPELINE_PATH, 'pipeline.pickle'))
 if os.path.isfile(PIPELINE_PATH):
     PIPELINE = pickle.load(open(PIPELINE_PATH, 'rb'))
 else:
