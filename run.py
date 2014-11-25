@@ -4,10 +4,12 @@ from itertools import permutations
 from core.vectorize import train
 from core import concepts
 from eval import evaluate, test
+from eval.util import progress
 
 import click as c
 import numpy as np
 from sklearn.grid_search import ParameterGrid
+from ftfy import fix_text_segment
 
 # Suppress floating point errors.
 np.seterr(all='ignore')
@@ -80,6 +82,34 @@ def train(datapath):
     train(docs)
     concepts.train(docs)
 
+@run.command()
+@c.argument('datapath', type=datapath_type)
+def clean(datapath):
+    red_flags = ['â€', 'Â']
+
+    with open(datapath, 'r') as file:
+        data = json.load(file)
+
+    bad = []
+    good = []
+    for article in progress(data, 'Fixing {0} articles...'.format(len(data))):
+        for key in ['title', 'text']:
+            article[key] = fix_text_segment(article[key])
+
+        flagged = False
+        for flag in red_flags:
+            if flag in article['text'] + article['title']:
+                bad.append(article)
+                flagged = True
+                break
+        if not flagged:
+            good.append(article)
+
+    print('Getting rid of {0} bad articles.'.format(len(bad)))
+
+    outpath = datapath.replace('.json', '_cleaned.json')
+    with open(outpath, 'w') as file:
+        json.dump(good, file)
 
 @run.command()
 @c.argument('approach', type=approach_type)

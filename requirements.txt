@@ -5,6 +5,7 @@ PySide==1.2.2
 Pympler==0.3.1
 click==3.3
 decorator==3.4.0
+ftfy==3.3.0
 gnureadline==6.3.3
 ipython==2.2.0
 line-profiler==1.0
@@ -25,3 +26,5 @@ scikit-learn==0.15.2
 scipy==0.14.0
 six==1.8.0
 tables==3.1.1
+topia.termextract==1.1.0
+zope.interface==4.1.1
