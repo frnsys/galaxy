@@ -4,7 +4,7 @@
 
     "Efficient Phrase-Based Document Indexing for Web Document Clustering"
 """
-from core.digshc.dig import DocumentIndexGraph
+from .dig import DocumentIndexGraph
 import numpy as np
 import scipy
 

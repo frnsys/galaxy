@@ -21,6 +21,13 @@ or clone this repo and then install it from there (useful if you are actively wo
 
     pip install --editable .
 
+Then you should configure things as needed (see the next section) and then train your pipelines:
+
+    $ python run.py train /path/to/training/data.json
+
+This expects that the data is a list of dictionaries, with `title` and `text` keys.
+Depending on how much data you have, this could take a long time.
+
 ## Config
 
 You can configure a few things by setting them on `galaxy.conf`:
@@ -42,6 +49,9 @@ You should set these _before_ you load any of the other `galaxy` modules.
 
     # Run clustering on unlabeled data:
     $ python run.py cluster /path/to/test/data.json
+
+    # Fix up encoding errors in data:
+    $ python run.py clean /path/to/data.json
 
 ## Performance
 
