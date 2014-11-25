@@ -18,8 +18,9 @@ def apply_func(func, queue, args_chunk):
 
     return results
 
-def parallelize(func, args_set):
-    cpus = mp.cpu_count() - 1
+def parallelize(func, args_set, cpus=0):
+    if cpus < 1:
+        cpus = mp.cpu_count() - 1
     pool = mp.Pool(processes=cpus)
     print('Running on {0} cores.'.format(cpus))
 
