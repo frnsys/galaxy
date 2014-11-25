@@ -7,9 +7,10 @@ from nltk.tokenize import sent_tokenize, word_tokenize
 from nltk.corpus import stopwords
 from nltk.stem.wordnet import WordNetLemmatizer
 
-from ..vectorize import vectorize
-from scipy.spatial.distance import cosine
 from scipy import argmax
+from scipy.spatial.distance import cosine
+
+from ..vector import vectorize
 
 LEMMATIZER = WordNetLemmatizer()
 

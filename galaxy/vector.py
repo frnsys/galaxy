@@ -32,7 +32,8 @@ class Tokenizer():
 
 PIPELINE_PATH = os.path.expanduser(os.path.join(conf.PIPELINE_PATH, 'pipeline.pickle'))
 if os.path.isfile(PIPELINE_PATH):
-    PIPELINE = pickle.load(open(PIPELINE_PATH, 'rb'))
+    with open(PIPELINE_PATH, 'rb') as f:
+        PIPELINE = pickle.load(f)
 else:
     PIPELINE = False
 
@@ -60,8 +61,8 @@ def train(docs):
     PIPELINE = pipeline
 
     print('Serializing pipeline to {0}'.format(PIPELINE_PATH))
-    pipeline_file = open(PIPELINE_PATH, 'wb')
-    pickle.dump(pipeline, pipeline_file)
+    with open(PIPELINE_PATH, 'wb') as f:
+        pickle.dump(pipeline, f)
     print('Training complete.')
 
 def tokenize(doc, **kwargs):

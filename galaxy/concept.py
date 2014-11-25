@@ -21,6 +21,18 @@ from topia.termextract import extract
 
 from . import conf
 
+def pipeline_path(pipetype):
+    return os.path.expanduser(os.path.join(conf.PIPELINE_PATH, '{0}_pipeline.pickle'.format(pipetype)))
+
+PIPELINES = {}
+PIPETYPES = ['stanford', 'spotlight', 'keyword']
+for pipetype in PIPETYPES:
+    pipe_path = pipeline_path(pipetype)
+    if os.path.isfile(pipe_path):
+        with open(pipe_path, 'rb') as f:
+            PIPELINES[pipetype] = pickle.load(f)
+    else:
+        PIPELINES[pipetype] = False
 
 extractor = extract.TermExtractor()
 # By default, the extractor ignores potential keywords if they
@@ -47,12 +59,6 @@ class ConceptTokenizer():
     def __call__(self, doc):
         return tokenize(doc)
 
-PIPELINE_PATH = os.path.expanduser(os.path.join(conf.PIPELINE_PATH, 'concept_pipeline.pickle'))
-if os.path.isfile(PIPELINE_PATH):
-    PIPELINE = pickle.load(open(PIPELINE_PATH, 'rb'))
-else:
-    PIPELINE = False
-
 def tokenize(doc):
     """
     Tokenize a document of ONLY concepts.
@@ -64,7 +70,7 @@ def tokenize(doc):
     """
     return doc.split('||')
 
-def train(docs, n_components=500):
+def train(docs, n_components=500, pipetype='stanford'):
     """
     Trains and serializes (pickles) a vectorizing pipeline
     based on training data.
@@ -76,7 +82,7 @@ def train(docs, n_components=500):
     since they don't convey much information.
     """
     pipeline = Pipeline([
-        ('vectorizer', CountVectorizer(input='content', stop_words='english', lowercase=True, tokenizer=ConceptTokenizer(), min_df=0.0, max_df=0.9)),
+        ('vectorizer', CountVectorizer(input='content', stop_words='english', lowercase=True, tokenizer=ConceptTokenizer(), min_df=0.05, max_df=0.9)),
         ('tfidf', TfidfTransformer(norm=None, use_idf=True, smooth_idf=True)),
         ('feature_reducer', TruncatedSVD(n_components=n_components)),
         ('normalizer', Normalizer(copy=False))
@@ -84,41 +90,45 @@ def train(docs, n_components=500):
 
     print('Training on {0} docs...'.format(len(docs)))
 
-    from http.client import BadStatusLine
-    from time import sleep
+
+    cons = []
     from eval.util import progress
-    max_retries = 5
-    concepts_docs = []
-    for doc in progress(docs, 'Extracting concepts...'):
-        retries = 0
-        c_1 = concepts(doc)
-        while retries < max_retries:
-            try:
-                c_2 = concepts(doc, strategy='spotlight')
-                break
-            except BadStatusLine:
-                if retries > max_retries:
-                    raise
-                sleep(1*retries)
-                retries += 1
-        c_3 = keywords(doc)
-        concepts_docs.append('||'.join(c_1+c_2+c_3))
-    pipeline.fit(concepts_docs)
+    if pipetype == 'keyword':
+        for doc in progress(docs, 'Extracting concepts...'):
+            cons.append('||'.join(keywords(doc)))
+    elif pipetype == 'stanford':
+        for doc in progress(docs, 'Extracting concepts...'):
+            cons.append('||'.join(concepts(doc, strategy='stanford')))
+    elif pipetype == 'spotlight':
+        from http.client import BadStatusLine
+        from time import sleep
+        problems = 0
+        max_retries = 5
+        for doc in progress(docs, 'Extracting concepts...'):
+            retries = 0
+            while retries < max_retries:
+                try:
+                    cons.append('||'.join(concepts(doc, strategy='spotlight')))
+                    break
+                except BadStatusLine:
+                    if retries > max_retries:
+                        raise
+                    sleep(1*retries)
+                    retries += 1
+                    problems += 1
+        print('Had {0} problems.'.format(problems))
+    else:
+        raise Exception('Unrecognized pipeline pipetype: {0}.'.format(pipetype))
 
-    PIPELINE = pipeline
+    pipeline.fit(cons)
+    PIPELINES[pipetype] = pipeline
 
-    print('Serializing pipeline to {0}'.format(PIPELINE_PATH))
-    pipeline_file = open(PIPELINE_PATH, 'wb')
-    pickle.dump(pipeline, pipeline_file)
+    pipe_path = pipeline_path(pipetype)
+    print('Serializing pipeline to {0}'.format(pipe_path))
+
+    with open(pipe_path, 'wb') as f:
+        pickle.dump(pipeline, f)
     print('Training complete.')
-
-def strip(text):
-    """
-    Removes punctuation from the beginning
-    and end of text.
-    """
-    punctuation = string.punctuation + '“”‘’–"'
-    return text.strip(punctuation)
 
 def concepts(docs, strategy='stanford'):
     """
@@ -143,7 +153,7 @@ def concepts(docs, strategy='stanford'):
     entities = []
 
     if strategy == 'stanford':
-        tagger = ner.SocketNER(host=conf.STANFORD['host'], port=conf.STANFORD['post'])
+        tagger = ner.SocketNER(host=conf.STANFORD['host'], port=conf.STANFORD['port'])
 
         for doc in docs:
             try:
@@ -234,31 +244,25 @@ def concepts(docs, strategy='stanford'):
     return entities
 
 
-def vectorize_old(concepts):
-    """
-    This vectorizes a list or a string of concepts;
-    the regular `vectorize` method is meant to vectorize text documents;
-    it is trained for that kind of data and thus is inappropriate for concepts.
-    So instead we just use a simple hashing vectorizer.
-    """
-    h = HashingVectorizer(input='content', stop_words='english', norm=None, tokenizer=ConceptTokenizer())
-    if type(concepts) is str:
-        # Extract and return the vector for the single document.
-        return h.transform([concepts]).toarray()[0]
-    else:
-        return h.transform(concepts)
-
-
-def vectorize(concepts):
+def vectorize(concepts, pipetype='stanford'):
     """
     Vectorizes a list of concepts using
     a trained vectorizing pipeline.
     """
-    if not PIPELINE:
-        raise Exception('No pipeline is loaded. Have you trained one yet?')
+    pipeline = PIPELINES[pipetype]
+    if not pipeline:
+        raise Exception('No pipeline of type {0} is loaded. Have you trained one yet?'.format(pipetype))
 
     if type(concepts) is str:
         # Extract and return the vector for the single document.
-        return PIPELINE.transform([concepts])[0]
+        return pipeline.transform([concepts])[0]
     else:
-        return PIPELINE.transform(concepts)
+        return pipeline.transform(concepts)
+
+def strip(text):
+    """
+    Removes punctuation from the beginning
+    and end of text.
+    """
+    punctuation = string.punctuation + '“”‘’–"'
+    return text.strip(punctuation)

@@ -9,9 +9,8 @@ from nltk.corpus import stopwords
 from nltk.stem.wordnet import WordNetLemmatizer
 from scipy.spatial.distance import cosine
 
-from ..vectorize import vectorize
+from ..vector import vectorize
 from .util import mirror_upper, triu_index
-from eval.data import load_articles
 
 
 LEMMATIZER = WordNetLemmatizer()

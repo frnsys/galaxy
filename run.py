@@ -1,7 +1,7 @@
 import json
 from itertools import permutations
 
-from galaxy import vectorize, concepts
+from galaxy import vector, concept
 from eval import evaluate, test
 from eval.util import progress
 
@@ -66,9 +66,9 @@ def run():
 
 
 @run.command()
+@c.argument('pipetype', type=c.Choice(['bow', 'stanford', 'spotlight', 'keyword']))
 @c.argument('datapath', type=datapath_type)
-@c.option('--pipeline', default='all', type=c.Choice(['all', 'bow', 'concepts']), help='which pipeline to train')
-def train(datapath, pipeline):
+def train(pipetype, datapath):
     """
     Train the feature pipelines.
     """
@@ -76,11 +76,11 @@ def train(datapath, pipeline):
         training_data = json.load(f)
         docs = ['{0} {1}'.format(d['title'], d['text']) for d in training_data]
 
-    if pipeline is 'all' or 'bow':
-        vectorize.train(docs)
+    if pipetype == 'bow':
+        vector.train(docs)
 
-    if pipeline is 'all' or 'concepts':
-        concepts.train(docs)
+    if pipetype in ['stanford', 'spotlight', 'keyword']:
+        concept.train(docs, pipetype=pipetype)
 
 @run.command()
 @c.argument('datapath', type=datapath_type)

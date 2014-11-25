@@ -1,4 +1,4 @@
-PIPELINE_PATH = '/env/galaxy/'
+PIPELINE_PATH = '~/env/galaxy/'
 STANFORD = {
     'host':  'localhost',
     'port': 8080
