@@ -1,6 +1,5 @@
 import json
 import pickle
-from random import random, randint
 from datetime import datetime
 
 import numpy as np
@@ -8,10 +7,8 @@ from scipy.sparse import csr_matrix, hstack
 from sklearn.preprocessing import normalize
 from dateutil.parser import parse
 
-from core.models import Article
-from .util import progress
+from .models import Article
 from .parallel import parallelize
-
 
 def load_articles(datapath, with_labels=True, as_incremental=False):
     print('Loading articles from {0}...'.format(datapath))

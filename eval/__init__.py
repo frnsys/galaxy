@@ -4,7 +4,7 @@ import pickle
 from datetime import datetime
 from collections import namedtuple
 
-from core.cluster import hac, ihac, digbc, digshc
+from galaxy.cluster import hac, ihac, digbc, digshc
 from . import random, scoring
 from .report import build_report
 from .data import load_articles, build_vectors
