@@ -7,7 +7,7 @@ from nltk.tokenize import sent_tokenize, word_tokenize
 from nltk.corpus import stopwords
 from nltk.stem.wordnet import WordNetLemmatizer
 
-from core.vectorize import vectorize
+from ..vectorize import vectorize
 from scipy.spatial.distance import cosine
 from scipy import argmax
 
@@ -110,7 +110,7 @@ class DocumentIndexGraphClusterer(nx.DiGraph):
             doc_table.setdefault(doc_id, DocumentTableEntry())
             doc_table[doc_id].term_freqs[level] += 1
 
-        self.assign_cluster(document)
+        self.assign_clusters(document)
 
     def get_doc(self, doc_id):
         return self.indexed_docs[doc_id]
@@ -198,7 +198,7 @@ class DocumentIndexGraphClusterer(nx.DiGraph):
     def get_sim_t(self, doc_a, doc_b):
         return cosine(doc_a.tfidf, doc_b.tfidf)
 
-    def get_blended_similarity(self, doc_a_id, doc_b_id, alpha=0.7):
+    def get_sim_blend(self, doc_a_id, doc_b_id, alpha=0.7):
         doc_a = self.get_doc(doc_a_id)
         doc_b = self.get_doc(doc_b_id)
         sim_p = self.get_sim_p(doc_a, doc_b)
@@ -262,7 +262,7 @@ class DocumentIndexGraphClusterer(nx.DiGraph):
         self.phrase_freqs[cluster.id][tuple(phrase)] = phrase_freq
         self.phrase_doc_freqs[cluster.id][tuple(phrase)] = phrase_doc_freq
 
-    def assign_cluster(self, document):
+    def assign_clusters(self, document):
         good_clusters = []
         best_similarities = []
 
@@ -372,4 +372,4 @@ if __name__ == '__main__':
         dig.index_document(doc)
 
     import ipdb; ipdb.set_trace()
-    # print([dig.get_blended_similarity(a, b) for (a, b) in [(0, 1), (1, 2), (0, 2)]])
+    # print([dig.get_sim_blend(a, b) for (a, b) in [(0, 1), (1, 2), (0, 2)]])

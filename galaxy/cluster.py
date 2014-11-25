@@ -5,13 +5,12 @@ from scipy.spatial.distance import pdist, squareform
 from scipy.cluster.hierarchy import linkage, fcluster
 
 import numpy as np
+from scipy import argmax
 from sklearn.metrics.pairwise import pairwise_distances
 
-from core.ihac.hierarchy import Hierarchy
-
-from scipy import argmax
-from core.digbc import DocumentIndexGraphClusterer
-from core.digshc.shc import SimilarityHistogramClusterer
+from .digbc import DocumentIndexGraphClusterer
+from .digshc.shc import SimilarityHistogramClusterer
+from .ihac.hierarchy import Hierarchy
 
 """
 Notes:

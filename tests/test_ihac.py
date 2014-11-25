@@ -5,7 +5,7 @@ import numpy as np
 from numpy.testing import assert_array_equal
 from sklearn.metrics.pairwise import pairwise_distances
 
-from core.ihac.hierarchy import Hierarchy
+from galaxy.ihac.hierarchy import Hierarchy
 
 class ClusteringTest(unittest.TestCase):
     def setUp(self):

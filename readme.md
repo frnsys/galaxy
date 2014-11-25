@@ -1,4 +1,35 @@
-You can use the env you set up for the core argos project.
+## Setup
+
+There is some prep you need to do for Pytables (the `tables` package):
+
+    pip install numexpr cython
+
+    # On OSX
+    brew tap homebrew/science
+    brew install hdf5
+
+    # On Linux
+    sudo apt-get install libhdf5-dev
+
+There are other additional dependencies which you can install using the provided `setup` script.
+
+Then you can install `galaxy` with either:
+
+    pip install git+git://github.com/ftzeng/galaxy
+
+or clone this repo and then install it from there (useful if you are actively working on this project):
+
+    pip install --editable .
+
+## Config
+
+You can configure a few things by setting them on `galaxy.conf`:
+
+    conf.PIPELINE_PATH = where you pickled pipelines are stored.
+    conf.STANFORD      = a dict specifying the host & port of your Stanford NER server.
+    conf.SPOTLIGHT     = a dict specifying the host & port of your DBpedia Spotlight server.
+
+You should set these _before_ you load any of the other `galaxy` modules.
 
 ## Usage
 
@@ -6,40 +37,11 @@ You can use the env you set up for the core argos project.
     $ python run.py train /path/to/training/data.json
 
     # Evaluate event clustering (on labeled data):
-    $ python run.py evaluate /path/to/eval/data.json <approach> [--incremental|--random]
+    # The `--incremental` flag will break the input into chunks of random sizes.
+    $ python run.py eval /path/to/eval/data.json <approach> [--incremental]
 
     # Run clustering on unlabeled data:
     $ python run.py cluster /path/to/test/data.json
-
-The `--random` flag will randomize the ordering of the input.
-The `--incremental` flag will break the input into chunks of random sizes.
-
-
-## Visualization setup
-If you want to get visualizations working for the IHAC hierarchy, you have to do a lot
-of work (these instructions are for OSX 10.9):
-
-    brew install qt
-    brew install graphviz
-    pip install -U pyside
-    git clone https://github.com/PySide/pyside-setup.git
-    cd pyside-setup
-    pyside_postinstall.py -install
-
-    # pygraphviz with basic py3 support
-    pip install git+git://github.com/ftzeng/pygraphviz.git
-
-For Ubuntu:
-
-    sudo apt-get install graphviz libgraphviz-dev
-    sudo apt-get build-dep python-matplotlib
-    pip install matplotlib
-    sudo apt-get install cmake qt-sdk
-    pip install -U pyside
-
-    # pygraphviz with basic py3 support
-    pip install git+git://github.com/ftzeng/pygraphviz.git
-
 
 ## Performance
 

@@ -17,8 +17,28 @@ from sklearn.feature_extraction.text import TfidfTransformer, CountVectorizer, H
 from sklearn.pipeline import Pipeline
 from sklearn.decomposition import TruncatedSVD
 from sklearn.preprocessing import Normalizer
+from topia.termextract import extract
 
-from conf import APP
+from . import conf
+
+
+extractor = extract.TermExtractor()
+# By default, the extractor ignores potential keywords if they
+# consist of only one word and only occur once.
+# Uncomment this line to include them.
+#extractor.filter = extract.permissiveFilter
+def keywords(doc):
+    """
+    Build a keyword "doc" for a document.
+    """
+    keywords = extractor(doc)
+
+    out = []
+    for keyword, count, length in keywords:
+        for i in range(count):
+            out.append(keyword)
+
+    return out
 
 class ConceptTokenizer():
     """
@@ -27,7 +47,7 @@ class ConceptTokenizer():
     def __call__(self, doc):
         return tokenize(doc)
 
-PIPELINE_PATH = os.path.expanduser(os.path.join(APP['PIPELINE_PATH'], 'concept_pipeline.pickle'))
+PIPELINE_PATH = os.path.expanduser(os.path.join(conf.PIPELINE_PATH, 'concept_pipeline.pickle'))
 if os.path.isfile(PIPELINE_PATH):
     PIPELINE = pickle.load(open(PIPELINE_PATH, 'rb'))
 else:
@@ -63,7 +83,27 @@ def train(docs, n_components=500):
     ])
 
     print('Training on {0} docs...'.format(len(docs)))
-    pipeline.fit(['||'.join(concepts(doc)) for doc in docs])
+
+    from http.client import BadStatusLine
+    from time import sleep
+    from eval.util import progress
+    max_retries = 5
+    concepts_docs = []
+    for doc in progress(docs, 'Extracting concepts...'):
+        retries = 0
+        c_1 = concepts(doc)
+        while retries < max_retries:
+            try:
+                c_2 = concepts(doc, strategy='spotlight')
+                break
+            except BadStatusLine:
+                if retries > max_retries:
+                    raise
+                sleep(1*retries)
+                retries += 1
+        c_3 = keywords(doc)
+        concepts_docs.append('||'.join(c_1+c_2+c_3))
+    pipeline.fit(concepts_docs)
 
     PIPELINE = pipeline
 
@@ -80,13 +120,13 @@ def strip(text):
     punctuation = string.punctuation + '“”‘’–"'
     return text.strip(punctuation)
 
-def concepts(docs, strategy='spotlight'):
+def concepts(docs, strategy='stanford'):
     """
     Named entity recognition on
     a text document or documents.
 
     Requires that a Stanford NER server or a DBpedia Spotlight
-    server is running at argos.conf.APP['KNOWLEDGE_HOST'],
+    server is running at conf.STANFORD['host'],
     depending on which strategy you choose.
 
     Args:
@@ -103,7 +143,7 @@ def concepts(docs, strategy='spotlight'):
     entities = []
 
     if strategy == 'stanford':
-        tagger = ner.SocketNER(host=APP['KNOWLEDGE_HOST'], port=8080)
+        tagger = ner.SocketNER(host=conf.STANFORD['host'], port=conf.STANFORD['post'])
 
         for doc in docs:
             try:
@@ -164,18 +204,18 @@ def concepts(docs, strategy='spotlight'):
 
         As you can see, it provides more (useful) data than we are taking advantage of.
         '''
-        endpoint = 'http://{host}:2222/rest/annotate'.format(host=APP['KNOWLEDGE_HOST'])
+        endpoint = 'http://{host}:{port}/rest/annotate'.format(host=conf.SPOTLIGHT['host'], port=conf.SPOTLIGHT['port'])
         for doc in docs:
             data = {
                     'text': doc,
-                    'confidence': 0,
+                    'confidence': 0.35,
                     'support': 0
                    }
-            url = '{endpoint}?{data}'.format(endpoint=endpoint, data=urlencode(data))
-            req = request.Request(url,
+            req = request.Request(endpoint,
                     headers={
                         'Accept': 'application/json'
-                    })
+                    },
+                    data=urlencode(data).encode('utf-8'))
             try:
                 res = request.urlopen(req)
             except error.HTTPError as e:
@@ -186,7 +226,7 @@ def concepts(docs, strategy='spotlight'):
             else:
                 content = res.read()
                 ents = json.loads(content.decode('utf-8'))['Resources']
-                entities += [entity['@surfaceForm'] for entity in ents]
+                entities += [e['@surfaceForm'] for e in ents if e['@surfaceForm'] is not None]
 
     else:
         raise Exception('Unknown strategy specified. Please use either `stanford` or `spotlight`.')
