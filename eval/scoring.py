@@ -1,6 +1,6 @@
 from sklearn import metrics
 
-from eval.util import TableGenerator
+from .util import TableGenerator
 
 METRICS = ['adjusted_rand', 'adjusted_mutual_info', 'completeness', 'homogeneity']
 

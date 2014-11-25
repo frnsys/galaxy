@@ -4,7 +4,7 @@ from functools import partial
 
 import numpy as np
 
-from eval.util import progress_bar
+from .util import progress_bar
 
 def apply_func(func, queue, args_chunk):
     # Apply each group of arguments in a list of arg groups to a func.

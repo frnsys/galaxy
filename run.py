@@ -1,8 +1,7 @@
 import json
 from itertools import permutations
 
-from core import vectorize
-from core import concepts
+from core import vectorize, concepts
 from eval import evaluate, test
 from eval.util import progress
 

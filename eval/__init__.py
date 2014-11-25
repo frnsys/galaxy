@@ -5,11 +5,11 @@ from datetime import datetime
 from collections import namedtuple
 
 from core.cluster import hac, ihac, digbc, digshc
-from core.util import labels_to_lists
-from eval.report import build_report
-from eval.data import load_articles, build_vectors
-from eval.parallel import parallelize
-from eval import random, scoring
+from . import random, scoring
+from .report import build_report
+from .data import load_articles, build_vectors
+from .parallel import parallelize
+from .util import labels_to_lists
 
 Member = namedtuple('Member', ['id', 'title'])
 
@@ -115,6 +115,7 @@ def test(datapath, approach, params):
     Test the clustering on a dataset that doesn't have labels.
     """
     articles = load_articles(datapath, with_labels=False)
+    articles = articles[:100]
     vecs = build_vectors(articles)
 
     start_time = time.time()
