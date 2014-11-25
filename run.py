@@ -1,16 +1,13 @@
 import json
 from itertools import permutations
 
-from core.vectorize import train
+from core import vectorize
 from core import concepts
 from eval import evaluate, test
 
 import click as c
 import numpy as np
 from sklearn.grid_search import ParameterGrid
-
-# Suppress floating point errors.
-np.seterr(all='ignore')
 
 # build weights while keeping the first weight constant.
 weights = [[1.] + list(grp) for grp in list(permutations(np.arange(20., 100., 10.), 2))]
@@ -73,11 +70,11 @@ def train(datapath):
     """
     Train the feature pipelines.
     """
-    training_file = open(datapath, 'r')
-    training_data = json.load(training_file)
+    with open(datapath, 'r') as f:
+        training_data = json.load(f)
+        docs = ['{0} {1}'.format(d['title'], d['text']) for d in training_data]
 
-    docs = ['{0} {1}'.format(d['title'], d['text']) for d in training_data]
-    train(docs)
+    vectorize.train(docs)
     concepts.train(docs)
 
 
