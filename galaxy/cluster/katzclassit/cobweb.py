@@ -1,3 +1,5 @@
+# TO DO: cleanup
+
 """
     Classic COBWEB implementation
     Taken from https://github.com/cmaclell/concept_formation

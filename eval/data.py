@@ -1,6 +1,5 @@
 import json
 import pickle
-from random import random, randint
 from datetime import datetime
 
 import numpy as np
@@ -8,11 +7,8 @@ from scipy.sparse import csr_matrix, hstack
 from sklearn.preprocessing import normalize
 from dateutil.parser import parse
 
-from core.models import Article
-from eval.util import progress
-from eval.parallel import parallelize
-from eval.unicodefixer import fix_bad_unicode
-
+from .models import Article
+from .parallel import parallelize
 
 def load_articles(datapath, with_labels=True, as_incremental=False):
     print('Loading articles from {0}...'.format(datapath))
@@ -83,6 +79,4 @@ def process_article(a):
         else:
             a[key] = parse(a[key]['$date'])
 
-    # There are a lot of encoding bugs, fix them.
-    #a['text'] = fix_bad_unicode(a['text'])
     return Article(**a)

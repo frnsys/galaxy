@@ -1,8 +1,7 @@
 import json
 from itertools import permutations
 
-from core import vectorize
-from core import concepts
+from galaxy import vector, concept
 from eval import evaluate, test
 from eval.util import progress
 
@@ -67,8 +66,9 @@ def run():
 
 
 @run.command()
+@c.argument('pipetype', type=c.Choice(['bow', 'stanford', 'spotlight', 'keyword']))
 @c.argument('datapath', type=datapath_type)
-def train(datapath):
+def train(pipetype, datapath):
     """
     Train the feature pipelines.
     """
@@ -76,12 +76,19 @@ def train(datapath):
         training_data = json.load(f)
         docs = ['{0} {1}'.format(d['title'], d['text']) for d in training_data]
 
-    vectorize.train(docs)
-    concepts.train(docs)
+    if pipetype == 'bow':
+        vector.train(docs)
+
+    if pipetype in ['stanford', 'spotlight', 'keyword']:
+        concept.train(docs, pipetype=pipetype)
 
 @run.command()
 @c.argument('datapath', type=datapath_type)
 def clean(datapath):
+    """
+    Fix encoding errors in a data file and
+    gets rid of data which still seems problematic.
+    """
     red_flags = ['â€', 'Â']
 
     with open(datapath, 'r') as file:

@@ -2,6 +2,21 @@ import sys
 import logging
 import click
 
+def labels_to_lists(objs, labels):
+    """
+    Convert a list of objects
+    to be a list of lists arranged
+    according to a list of labels.
+    """
+    tmp = {}
+
+    for i, label in enumerate(labels):
+        if label not in tmp:
+            tmp[label] = []
+        tmp[label].append(objs[i])
+
+    return [v for v in tmp.values()]
+
 # Displays progress for an iterator.
 def progress(iter, label):
     fill_char = click.style('#', fg='green')

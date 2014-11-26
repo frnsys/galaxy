@@ -8,10 +8,6 @@ from .util import split_dist_matrix
 from .graph import Graph
 from . import persistence, visual
 
-# We should not get any numpy warnings since all operations should work
-# if the hierarchy is working properly. So if we get a warning, we want to treat it as an error.
-np.seterr(invalid='raise')
-
 dist_funcs = {
     'euclidean': euclidean,
     'cosine':    cosine
@@ -56,13 +52,11 @@ class Hierarchy():
 
         return h
 
-    def __init__(self, vecs=[], metric='euclidean', lower_limit_scale=0.9, upper_limit_scale=1.2):
+    def __init__(self, metric='euclidean', lower_limit_scale=0.9, upper_limit_scale=1.2):
         # Parameters.
         self.metric = metric
         self.lower_limit_scale = lower_limit_scale
         self.upper_limit_scale = upper_limit_scale
-
-        if len(vecs) > 0: self.fit(vecs)
 
     def save(self, filepath):
         h5f = tb.openFile(filepath, mode='a', title='Hierarchy')
@@ -97,17 +91,17 @@ class Hierarchy():
         # m = number of features
 
         # Distance matrix (nxn).
-        self.dists = np.array([[0.]], order='C')
+        self.dists = np.array([[0.]], order='C', dtype=np.float64)
 
         # Nearest distance data (nx2).
         # The actual nearest distances are of variable length (size would be 1xnum_children).
         # So we only store the nearest distances mean and std.
-        self.ndists = np.array([[0., 0.]], order='C')
+        self.ndists = np.array([[0., 0.]], order='C', dtype=np.float64)
 
         # Leaf node ID matrix (nx1)
         # This maps internal ids of leaf nodes (which are resued) to a universally unique one.
         # This is used for preserving leaf input order for returning labeled clusters.
-        self.ids = np.array([[0.]], order='C')
+        self.ids = np.array([[0]], order='C', dtype=np.uint32)
 
         # Adjacency matrix (nxn).
         self.g = Graph()
@@ -115,18 +109,23 @@ class Hierarchy():
         # Create initial leaves and root.
         # Centers matrix (mxn).
         # It is initialized with the first vector.
-        self.centers = np.array([vec_A], order='C') # node 0
-        self.create_node(vec=vec_B)                 # node 1
-        self.create_node(children=[0,1])            # root 2, no parents
+        self.centers = np.array([vec_A], order='C', dtype=np.float64) # node 0
+        self.create_node(vec=vec_B)                                   # node 1
+        self.create_node(children=[0,1])                              # root 2, no parents
+
+        return [0, 1]
 
     def fit(self, vecs):
+        # The uuids for each incorporated vector.
+        uuids = []
         if not hasattr(self, 'dists'):
             if len(vecs) < 2:
                 raise Exception('You must initialize the hierarchy with at least two vectors.')
-            self.initialize(*vecs[:2])
+            uuids += self.initialize(*vecs[:2])
             vecs = vecs[2:]
         for vec in vecs:
-            self.incorporate(vec)
+            uuids.append(self.incorporate(vec))
+        return uuids
 
     def visualize(self, dir='vertical'):
         func = visual.render_node_vertical if dir is 'vertical' else visual.render_node_horizontal
@@ -163,7 +162,25 @@ class Hierarchy():
 
         self.restructure(parent)
 
-        return n
+        return self.ids[n][0]
+
+    def prune(self, nodes):
+        """
+        Deletes nodes from the hierarchy.
+        """
+        for n in nodes:
+            # Remove the node from its parent.
+            p = self.g.get_parent(n)
+            self.g.remove_child(p, n)
+
+            # It's parent may only have one child node now. Fix if necessary.
+            # If it wasn't fixed, update it and restructure it.
+            if not self.fix(p):
+                self.update_cluster(p)
+                self.restructure(p)
+
+            # Delete the node completely.
+            self.delete_node(n)
 
     def _incorporate(self, n, n_c, n_cp, d):
         """
@@ -258,12 +275,10 @@ class Hierarchy():
 
     def _expand_mat(self, m, expand_h, expand_v):
         # Add a column.
-        if expand_h: m = np.hstack([m, np.zeros((m.shape[0], 1))])
-        #m = scipy.sparse.hstack([m, csr_matrix((m.shape[0], 1))], format='csr')
+        if expand_h: m = np.hstack([m, np.zeros((m.shape[0], 1), dtype=m.dtype)])
 
         # Add a row.
-        if expand_v: m = np.vstack([m, np.zeros(m.shape[1])])
-        #m = scipy.sparse.vstack([m, csr_matrix((1, m.shape[1]))], format='csr')
+        if expand_v: m = np.vstack([m, np.zeros(m.shape[1], dtype=m.dtype)])
         return m
 
     def delete_node(self, n):
@@ -568,6 +583,12 @@ class Hierarchy():
     # NODE PROPS ======================================================
     # =================================================================
 
+    def to_iid(self, uuid):
+        """
+        Converts a node uuid to its internal id.
+        """
+        return np.where(self.ids[:,0] == uuid)[0][0]
+
     def cdm(self, i):
         """
         Get a view of the master distance matrix representing this cluster node's children.
@@ -661,7 +682,7 @@ class Hierarchy():
         Returns all nodes in the hierarchy.
         These are all nodes that do not have infinite distance.
         """
-        return np.where(np.all(self.dists != np.inf, axis=1))[0].tolist()
+        return np.where(np.any(self.dists != np.inf, axis=1))[0].tolist()
 
     def upper_limit(self, n):
         """
@@ -712,16 +733,23 @@ class Hierarchy():
         """
         Creates flat clusters by pruning all clusters
         with density higher than the given threshold
-        and taking the leaves of the resulting hierarchy
+        and taking the leaves of the resulting hierarchy.
+        Returns clusters of nodes as represented by their uiids.
         """
-        clusters = [clus for clus in self.snip([self.g.root], distance_threshold)]
+        # Clusters with internal node ids.
+        clusters_i = [clus for clus in self.snip([self.g.root], distance_threshold)]
+
+        # Build clusters with node uuids.
+        clusters = []
+        for clus in clusters_i:
+            clusters.append([self.ids[id][0] for id in clus])
 
         # Return labels in the order that the vectors were inputted,
         # which is the same as the order of nodes by their uuids,
         # which are assigned according to when they were created.
         if with_labels:
             label_map = {}
-            for i, clus in enumerate(clusters):
+            for i, clus in enumerate(clusters_i):
                 for leaf in clus:
                     label_map[self.ids[leaf][0]] = i
             labels = [label_map[id] for id in sorted(label_map)]

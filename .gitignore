@@ -20,3 +20,4 @@ data/*
 *.dump
 *.lprof
 *.h5
+*.egg-info

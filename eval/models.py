@@ -1,8 +1,7 @@
 import pytz
 from datetime import datetime
 
-from core.vectorize import vectorize
-from core import concepts
+from galaxy import vectorize, concept
 
 epoch = datetime.utcfromtimestamp(0).replace(tzinfo=pytz.UTC)
 
@@ -15,16 +14,15 @@ class Article():
     def concepts(self):
         if not hasattr(self, '_concepts'):
             text = ' '.join([self.title, self.text])
-            self._concepts = concepts.concepts(text, strategy='stanford')
+            #self._concepts = concept.concepts(text, strategy='stanford') + concept.concepts(text, strategy='spotlight') + concept.keywords(text)
+            self._concepts = concept.concepts(text, strategy='stanford')
         return self._concepts
 
     @property
     def concept_vectors(self):
         # Calculating these on the fly and not
         # caching the results because caching eats up a lot of memory.
-        # '||' is the delimiter which the concept tokenizer uses.
-        concept_doc = '||'.join(self.concepts)
-        return concepts.vectorize(concept_doc)
+        return concept.vectorize(self.concepts)
 
     @property
     def vectors(self):

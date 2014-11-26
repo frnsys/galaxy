@@ -1,3 +1,5 @@
+# TO DO: cleanup
+
 import networkx as nx
 import numpy as np
 from copy import copy
@@ -9,9 +11,8 @@ from nltk.corpus import stopwords
 from nltk.stem.wordnet import WordNetLemmatizer
 from scipy.spatial.distance import cosine
 
-from core.vectorize import vectorize
+from galaxy.vector import vectorize
 from .util import mirror_upper, triu_index
-from eval.data import load_articles
 
 
 LEMMATIZER = WordNetLemmatizer()

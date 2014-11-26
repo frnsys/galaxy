@@ -111,9 +111,9 @@ class Graph():
         """
         Get all leaves in the hierarchy.
         A leaf node is one with no children
-        (that is, it's row is entirely 0).
+        (that is, it's row is entirely 0) and one parent.
         """
-        return np.where(np.all(self.mx == 0, axis=1))[0]
+        return np.where(np.all(self.mx == 0, axis=1) & np.any(self.mx == 1, axis=0))[0]
 
     @property
     def root(self):

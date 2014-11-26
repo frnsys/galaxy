@@ -30,10 +30,10 @@ cd $DIR
 #KNOSV_PID=$!
 #cd $DIR
 
-#cd $ARGOS_ENV/data/spotlight
-#java -jar -Xmx16g dbpedia-spotlight-0.7.jar en_2+2 http://localhost:2222/rest &
-#SPOTL_PID=$!
-#cd $DIR
+cd $ARGOS_ENV/data/spotlight
+java -jar -Xmx16g dbpedia-spotlight-0.7.jar en_2+2 http://localhost:2222/rest &
+SPOTL_PID=$!
+cd $DIR
 
 #source $ARGOS_ENV/bin/activate
 #celery worker --loglevel=DEBUG --app=eval.app
@@ -54,6 +54,6 @@ then
     #kill $RABMQ_PID
     kill $NERSV_PID
     #kill $KNOSV_PID
-    #kill $SPOTL_PID
+    kill $SPOTL_PID
     #kill $WORKR_PID
 fi

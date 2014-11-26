@@ -5,7 +5,11 @@ import numpy as np
 from numpy.testing import assert_array_equal
 from sklearn.metrics.pairwise import pairwise_distances
 
-from core.ihac.hierarchy import Hierarchy
+from galaxy.cluster.ihac import Hierarchy
+
+# We should not get any numpy warnings since all operations should work
+# if the hierarchy is working properly. So if we get a warning, we want to treat it as an error.
+np.seterr(invalid='raise')
 
 class ClusteringTest(unittest.TestCase):
     def setUp(self):
@@ -67,10 +71,10 @@ class ClusteringTest(unittest.TestCase):
 class HierarchyTest(unittest.TestCase):
     def setUp(self):
         self.initial_vecs = [[10], [30]]
-        self.h = Hierarchy(vecs=self.initial_vecs,
-                           metric='euclidean',
+        self.h = Hierarchy(metric='euclidean',
                            lower_limit_scale=0.1,
                            upper_limit_scale=1.5)
+        self.h.fit(self.initial_vecs)
         self.initial_leaves = [0,1]
         self.initial_clus   = 2
 
@@ -88,6 +92,11 @@ class HierarchyTest(unittest.TestCase):
 
         # The centers matrix is nxm.
         self.assertEqual(self.h.centers.shape, (3,1))
+
+    def test_fit_returns_uuids(self):
+        vecs = [[20], [30], [40]]
+        new_uuids = self.h.fit(vecs)
+        self.assertEqual(new_uuids, [3,4,6])
 
     def test_save_and_load(self):
         ids     = self.h.ids
@@ -227,9 +236,9 @@ class HierarchyTest(unittest.TestCase):
         # subset of S_k (S_i and S_j, respectively). S_k is split by disconnecting an
         # edge in N_k's minimum spanning tree (MST).
 
-        n_i = self.h.incorporate([10.05])
-        n_j = self.h.incorporate([10.08])
-        n_k = self.h.incorporate([10.1])
+        n_i = self.h.to_iid(self.h.incorporate([10.05]))
+        n_j = self.h.to_iid(self.h.incorporate([10.08]))
+        n_k = self.h.to_iid(self.h.incorporate([10.10]))
 
         sibs = self.h.g.get_siblings(self.initial_leaves[0])
         parent = self.h.g.get_parent(self.initial_leaves[0])
@@ -248,9 +257,9 @@ class HierarchyTest(unittest.TestCase):
         self.assertEqual(self.h.g.get_siblings(self.initial_leaves[0]), [self.initial_leaves[1]])
 
         # Add some new nodes very close to the first leaf node ([10]).
-        n_i = self.h.incorporate([10.05])
-        n_j = self.h.incorporate([10.08])
-        n_k = self.h.incorporate([10.1])
+        n_i = self.h.to_iid(self.h.incorporate([10.05]))
+        n_j = self.h.to_iid(self.h.incorporate([10.08]))
+        n_k = self.h.to_iid(self.h.incorporate([10.10]))
 
         # The second leaf node ([30]) should be different enough that it should
         # have moved to its own cluster.
@@ -273,17 +282,29 @@ class HierarchyTest(unittest.TestCase):
 
     def test_incorporate_adds_to_existing_cluster_node(self):
         # A node this close should be added as a sibling.
-        node_i = self.h.incorporate([11])
+        node_i = self.h.to_iid(self.h.incorporate([11]))
         self.assertEqual(self.h.g.get_siblings(self.initial_leaves[0]), [node_i])
 
     def test_incorporate_creates_new_cluster_node(self):
         # The cluster node and the new node should be siblings.
-        node_i = self.h.incorporate([90])
+        node_i = self.h.to_iid(self.h.incorporate([90]))
         self.assertEqual(self.h.g.get_siblings(self.initial_clus), [node_i])
 
+    def test_prune(self):
+        self.h.fit([[20], [30]])
+
+        self.assertEqual(self.h.available_ids, [])
+        assert_array_equal(self.h.g.leaves, [0,1,3,4])
+
+        self.h.prune([5])
+
+        self.assertEqual(self.h.available_ids, [1,4,5])
+        assert_array_equal(self.h.g.leaves, [0,3])
+        assert_array_equal(self.h.nodes, [0,2,3])
+
     def test_clusters(self):
-        node_i = self.h.incorporate([90])
-        node_j = self.h.incorporate([40])
+        node_i = self.h.to_iid(self.h.incorporate([90]))
+        node_j = self.h.to_iid(self.h.incorporate([40]))
 
         clusters = self.h.clusters(distance_threshold=14.0, with_labels=False)
         self.assertEqual(clusters, [self.initial_leaves + [node_j], [node_i]])
@@ -302,10 +323,10 @@ class DistancesTest(unittest.TestCase):
     def setUp(self):
         self.vecs = [[10], [20], [0], [20]]
         self.initial_vecs =  self.vecs[:2]
-        self.h = Hierarchy(self.initial_vecs,
-                           metric='euclidean',
+        self.h = Hierarchy(metric='euclidean',
                            lower_limit_scale=0.1,
                            upper_limit_scale=1.5)
+        self.h.fit(self.initial_vecs)
 
         children = [self.h.create_node(vec=vec) for vec in self.vecs[2:]]
         n = self.h.create_node(children=children)
@@ -395,7 +416,8 @@ class ClusterNodeTest(unittest.TestCase):
         self.data = np.array([[1],[2],[4],[8],[12]])
 
         # Initialize the hierarchy with the first two datapoints.
-        self.h = Hierarchy(vecs=self.data[:2])
+        self.h = Hierarchy()
+        self.h.fit(self.data[:2])
 
         # Create (leaf) nodes for each other datapoint.
         self.nodes = self.h.nodes[:2] + [self.h.create_node(vec=vec) for vec in self.data[2:]]
@@ -462,10 +484,10 @@ class GraphTest(unittest.TestCase):
 
     def setUp(self):
         self.initial_vecs = [[10], [20]]
-        self.h = Hierarchy(self.initial_vecs,
-                           metric='euclidean',
+        self.h = Hierarchy(metric='euclidean',
                            lower_limit_scale=0.1,
                            upper_limit_scale=1.5)
+        self.h.fit(self.initial_vecs)
         self.g = self.h.g
 
         self.extra_vecs = [[0], [20]]
