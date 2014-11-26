@@ -8,10 +8,6 @@ from .util import split_dist_matrix
 from .graph import Graph
 from . import persistence, visual
 
-# We should not get any numpy warnings since all operations should work
-# if the hierarchy is working properly. So if we get a warning, we want to treat it as an error.
-np.seterr(invalid='raise')
-
 dist_funcs = {
     'euclidean': euclidean,
     'cosine':    cosine
@@ -586,6 +582,12 @@ class Hierarchy():
     # =================================================================
     # NODE PROPS ======================================================
     # =================================================================
+
+    def to_iid(self, uuid):
+        """
+        Converts a node uuid to its internal id.
+        """
+        return np.where(self.ids[:,0] == uuid)[0][0]
 
     def cdm(self, i):
         """

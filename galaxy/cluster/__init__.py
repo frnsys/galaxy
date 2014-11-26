@@ -10,7 +10,7 @@ from sklearn.metrics.pairwise import pairwise_distances
 
 from .digbc import DocumentIndexGraphClusterer
 from .digshc.shc import SimilarityHistogramClusterer
-from .ihac.hierarchy import Hierarchy
+from .ihac import Hierarchy
 
 """
 Notes:
