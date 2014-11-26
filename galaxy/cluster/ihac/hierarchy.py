@@ -168,6 +168,24 @@ class Hierarchy():
 
         return self.ids[n][0]
 
+    def prune(self, nodes):
+        """
+        Deletes nodes from the hierarchy.
+        """
+        for n in nodes:
+            # Remove the node from its parent.
+            p = self.g.get_parent(n)
+            self.g.remove_child(p, n)
+
+            # It's parent may only have one child node now. Fix if necessary.
+            # If it wasn't fixed, update it and restructure it.
+            if not self.fix(p):
+                self.update_cluster(p)
+                self.restructure(p)
+
+            # Delete the node completely.
+            self.delete_node(n)
+
     def _incorporate(self, n, n_c, n_cp, d):
         """
         Tries to find a way to integrate a new node n,
@@ -662,7 +680,7 @@ class Hierarchy():
         Returns all nodes in the hierarchy.
         These are all nodes that do not have infinite distance.
         """
-        return np.where(np.all(self.dists != np.inf, axis=1))[0].tolist()
+        return np.where(np.any(self.dists != np.inf, axis=1))[0].tolist()
 
     def upper_limit(self, n):
         """

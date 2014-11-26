@@ -292,12 +292,23 @@ class HierarchyTest(unittest.TestCase):
         node_i = self.to_iid(self.h.incorporate([90]))
         self.assertEqual(self.h.g.get_siblings(self.initial_clus), [node_i])
 
+    def test_prune(self):
+        self.h.fit([[20], [30]])
+
+        self.assertEqual(self.h.available_ids, [])
+        assert_array_equal(self.h.g.leaves, [0,1,3,4])
+
+        self.h.prune([5])
+
+        self.assertEqual(self.h.available_ids, [1,4,5])
+        assert_array_equal(self.h.g.leaves, [0,3])
+        assert_array_equal(self.h.g.nodes, [0,2,3])
+
     def test_clusters(self):
         node_i = self.to_iid(self.h.incorporate([90]))
         node_j = self.to_iid(self.h.incorporate([40]))
 
         clusters = self.h.clusters(distance_threshold=14.0, with_labels=False)
-        foo
         self.assertEqual(clusters, [self.initial_leaves + [node_j], [node_i]])
 
         clusters = self.h.clusters(distance_threshold=71.0, with_labels=False)
