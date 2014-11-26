@@ -1,3 +1,5 @@
+# TO DO: cleanup
+
 """
     Similarity Histogram based Clustering
     as described on

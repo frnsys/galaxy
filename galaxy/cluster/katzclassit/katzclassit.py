@@ -1,3 +1,5 @@
+# TO DO: cleanup
+
 """
     Implementation of Katz-CLASSIT
 

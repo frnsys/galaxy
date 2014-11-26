@@ -36,7 +36,7 @@ def hac(vecs, metric, linkage_method, threshold, weights):
     have a significantly lower memory footprint, it seems better to use
     that as a multicore job.
     """
-    vecs = _weight_vectors(vecs, weights)
+    vecs = weight_vectors(vecs, weights)
 
     if platform == 'darwin':
         # This breaks on OSX 10.9.4, py3.3+, with large arrays:
@@ -68,7 +68,7 @@ def ihac(vecs, metric, threshold, lower_limit_scale, upper_limit_scale, weights)
     Convenience method for clustering with IHAC.
     """
 
-    vecs = _weight_vectors(vecs, weights)
+    vecs = weight_vectors(vecs, weights)
 
     model = Hierarchy(vecs=vecs.toarray(),
                       metric=metric,
@@ -129,7 +129,7 @@ def digshc(docs, alpha, threshold, epsilon, hr_min):
     return labels
 
 
-def _weight_vectors(v, weights):
+def weight_vectors(v, weights):
     # Convert to a scipy.sparse.lil_matrix because it is subscriptable.
     v = v.tolil()
 

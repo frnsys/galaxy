@@ -21,6 +21,10 @@ or clone this repo and then install it from there (useful if you are actively wo
 
     pip install --editable .
 
+Note that you many need to manually upgrade the `topia.termextract` module to this git fork which is Py3 compatible:
+
+     pip install -U git+git://github.com/BowdoinOrient/topia.termextract.git
+
 Then you should configure things as needed (see the next section) and then train your pipelines:
 
     $ python run.py train /path/to/training/data.json

@@ -5,34 +5,21 @@ Conceptor
 Concept extraction from text.
 """
 
-import os
 import json
 import string
-import pickle
 from urllib import request, error
 from urllib.parse import urlencode
 
 import ner
-from sklearn.feature_extraction.text import TfidfTransformer, CountVectorizer, HashingVectorizer
+from sklearn.feature_extraction.text import TfidfTransformer, CountVectorizer
 from sklearn.pipeline import Pipeline
 from sklearn.decomposition import TruncatedSVD
 from sklearn.preprocessing import Normalizer
 from topia.termextract import extract
 
-from . import conf
-
-def pipeline_path(pipetype):
-    return os.path.expanduser(os.path.join(conf.PIPELINE_PATH, '{0}_pipeline.pickle'.format(pipetype)))
+from . import conf, pipe
 
 PIPELINES = {}
-PIPETYPES = ['stanford', 'spotlight', 'keyword']
-for pipetype in PIPETYPES:
-    pipe_path = pipeline_path(pipetype)
-    if os.path.isfile(pipe_path):
-        with open(pipe_path, 'rb') as f:
-            PIPELINES[pipetype] = pickle.load(f)
-    else:
-        PIPELINES[pipetype] = False
 
 extractor = extract.TermExtractor()
 # By default, the extractor ignores potential keywords if they
@@ -70,7 +57,7 @@ def tokenize(doc):
     """
     return doc.split('||')
 
-def train(docs, n_components=500, pipetype='stanford'):
+def train(docs, n_components=200, pipetype='stanford'):
     """
     Trains and serializes (pickles) a vectorizing pipeline
     based on training data.
@@ -82,7 +69,7 @@ def train(docs, n_components=500, pipetype='stanford'):
     since they don't convey much information.
     """
     pipeline = Pipeline([
-        ('vectorizer', CountVectorizer(input='content', stop_words='english', lowercase=True, tokenizer=ConceptTokenizer(), min_df=0.05, max_df=0.9)),
+        ('vectorizer', CountVectorizer(input='content', stop_words='english', lowercase=True, tokenizer=ConceptTokenizer(), min_df=0.01, max_df=0.9)),
         ('tfidf', TfidfTransformer(norm=None, use_idf=True, smooth_idf=True)),
         ('feature_reducer', TruncatedSVD(n_components=n_components)),
         ('normalizer', Normalizer(copy=False))
@@ -90,15 +77,20 @@ def train(docs, n_components=500, pipetype='stanford'):
 
     print('Training on {0} docs...'.format(len(docs)))
 
-
     cons = []
     from eval.util import progress
+
+    # Hint: n_components=150 is a good value here.
     if pipetype == 'keyword':
         for doc in progress(docs, 'Extracting concepts...'):
             cons.append('||'.join(keywords(doc)))
+
+    # Hint: n_components=200 is a good value here.
     elif pipetype == 'stanford':
         for doc in progress(docs, 'Extracting concepts...'):
             cons.append('||'.join(concepts(doc, strategy='stanford')))
+
+    # Hint: n_components=200 is a good value here.
     elif pipetype == 'spotlight':
         from http.client import BadStatusLine
         from time import sleep
@@ -120,14 +112,13 @@ def train(docs, n_components=500, pipetype='stanford'):
     else:
         raise Exception('Unrecognized pipeline pipetype: {0}.'.format(pipetype))
 
+    # temp
+    with open('/Users/ftseng/{0}.json'.format(pipetype), 'w') as f:
+        json.dump(cons, f)
+
     pipeline.fit(cons)
-    PIPELINES[pipetype] = pipeline
 
-    pipe_path = pipeline_path(pipetype)
-    print('Serializing pipeline to {0}'.format(pipe_path))
-
-    with open(pipe_path, 'wb') as f:
-        pickle.dump(pipeline, f)
+    pipe.save_pipeline(pipeline, pipetype)
     print('Training complete.')
 
 def concepts(docs, strategy='stanford'):
@@ -243,15 +234,18 @@ def concepts(docs, strategy='stanford'):
 
     return entities
 
-
 def vectorize(concepts, pipetype='stanford'):
     """
     Vectorizes a list of concepts using
     a trained vectorizing pipeline.
+
+    Concepts should be a list of extracted concepts.
     """
+    concepts = '||'.join(concepts)
+    if pipetype not in PIPELINES:
+        PIPELINES[pipetype] = pipe.load_pipeline(pipetype)
+
     pipeline = PIPELINES[pipetype]
-    if not pipeline:
-        raise Exception('No pipeline of type {0} is loaded. Have you trained one yet?'.format(pipetype))
 
     if type(concepts) is str:
         # Extract and return the vector for the single document.

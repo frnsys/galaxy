@@ -17,7 +17,7 @@ from nltk.tokenize import sent_tokenize, word_tokenize
 from nltk.stem.wordnet import WordNetLemmatizer
 from nltk.corpus import stopwords
 
-from . import conf
+from . import conf, pipe
 
 class Tokenizer():
     """
@@ -30,12 +30,7 @@ class Tokenizer():
         return tokenize(doc, lemmr=self.lemmr)
 
 
-PIPELINE_PATH = os.path.expanduser(os.path.join(conf.PIPELINE_PATH, 'pipeline.pickle'))
-if os.path.isfile(PIPELINE_PATH):
-    with open(PIPELINE_PATH, 'rb') as f:
-        PIPELINE = pickle.load(f)
-else:
-    PIPELINE = False
+PIPELINE = None
 
 def train(docs):
     """
@@ -58,11 +53,7 @@ def train(docs):
     print('Training on {0} docs...'.format(len(docs)))
     pipeline.fit(docs)
 
-    PIPELINE = pipeline
-
-    print('Serializing pipeline to {0}'.format(PIPELINE_PATH))
-    with open(PIPELINE_PATH, 'wb') as f:
-        pickle.dump(pipeline, f)
+    pipe.save_pipeline(pipeline, 'bow')
     print('Training complete.')
 
 def tokenize(doc, **kwargs):
@@ -105,8 +96,9 @@ def vectorize(docs):
     Returns:
         | scipy sparse matrix (CSR/Compressed Sparse Row format)
     """
+    global PIPELINE
     if not PIPELINE:
-        raise Exception('No pipeline is loaded. Have you trained one yet?')
+        PIPELINE = pipe.load_pipeline('bow')
 
     if type(docs) is str:
         # Extract and return the vector for the single document.

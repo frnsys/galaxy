@@ -1,3 +1,5 @@
+# TO DO: cleanup
+
 import math
 
 # A hashtable of vlaues to use in the c4(n) function to apply corrections to
