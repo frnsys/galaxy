@@ -25,5 +25,5 @@ six==1.8.0
 tables==3.1.1
 zope.interface==4.1.1
 
-git+git://github.com:ftzeng/topia.termextract
 git+git://github.com/dat/pyner
+git+git://github.com/BowdoinOrient/topia.termextract.git
