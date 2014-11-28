@@ -9,8 +9,7 @@ setup(
     author_email='f@frnsys.com',
     license='AGPLv3',
 
-    package_dir={'':'galaxy'},
-    packages=find_packages('galaxy'),
+    packages=find_packages(),
     dependency_links=[
         'git+git://github.com/dat/pyner',
         'git+git://github.com:ftzeng/topia.termextract'
