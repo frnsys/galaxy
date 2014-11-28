@@ -1,4 +1,4 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 setup(
     name='galaxy',
@@ -9,7 +9,8 @@ setup(
     author_email='f@frnsys.com',
     license='AGPLv3',
 
-    packages=['galaxy', 'galaxy.cluster'],
+    package_dir={'':'galaxy'},
+    packages=find_packages('galaxy'),
     dependency_links=[
         'git+git://github.com/dat/pyner',
         'git+git://github.com:ftzeng/topia.termextract'
