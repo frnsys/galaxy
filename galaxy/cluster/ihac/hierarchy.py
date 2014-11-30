@@ -162,6 +162,7 @@ class Hierarchy():
 
         self.restructure(parent)
 
+        # Return the uuid for the new node n.
         return self.ids[n][0]
 
     def prune(self, nodes):
@@ -269,7 +270,8 @@ class Hierarchy():
             self.update_distances(id)
 
         # Assign an incremented id. These should be universally unique.
-        self.ids[id] = np.max(self.ids) + 1
+        uuid = np.max(self.ids) + 1
+        self.ids[id] = uuid
 
         return id
 
