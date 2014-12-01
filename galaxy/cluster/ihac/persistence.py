@@ -2,6 +2,15 @@ import numpy as np
 import tables as tb
 from scipy.sparse import csr_matrix
 
+def save_available_ids(h5f, available_ids):
+    if hasattr(h5f.root, 'available_ids'):
+        h5f.root.available_ids._f_remove()
+
+    arr = tb.Array(h5f.root, 'available_ids', obj=available_ids)
+
+def load_available_ids(h5f):
+    return h5f.root.available_ids
+
 def save_graph(h5f, graph):
     """
     The graph is a sparse matrix, so we can just save the metadata

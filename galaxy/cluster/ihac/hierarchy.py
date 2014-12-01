@@ -45,6 +45,7 @@ class Hierarchy():
 
         h.dists   = persistence.load_dists(h5f)
         h.g       = Graph(persistence.load_graph(h5f))
+        h.available_ids = persistence.load_available_ids(h5f)
 
         h.metric            = root._v_attrs.metric
         h.lower_limit_scale = root._v_attrs.lower_limit_scale
@@ -71,6 +72,7 @@ class Hierarchy():
 
         persistence.save_graph(h5f, self.g.mx)
         persistence.save_dists(h5f, self.dists)
+        persistence.save_available_ids(h5f, self.available_ids)
 
         # Hierarchy metadata.
         root._v_attrs.metric            = self.metric
