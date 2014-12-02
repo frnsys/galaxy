@@ -114,7 +114,7 @@ class HierarchyTest(unittest.TestCase):
         assert_array_equal(ids,     h.ids.read())
         assert_array_equal(ndists,  h.ndists.read())
         assert_array_equal(centers, h.centers.read())
-        assert_array_equal(avail,   h.available_ids.read())
+        assert_array_equal(avail,   h.available_ids)
 
     def test_create_node(self):
         node = self.h.create_node(vec=[20])

@@ -9,7 +9,7 @@ def save_available_ids(h5f, available_ids):
     arr = tb.Array(h5f.root, 'available_ids', obj=available_ids)
 
 def load_available_ids(h5f):
-    return h5f.root.available_ids
+    return list(h5f.root.available_ids)
 
 def save_graph(h5f, graph):
     """
