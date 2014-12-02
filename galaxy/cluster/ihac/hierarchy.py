@@ -687,7 +687,6 @@ class Hierarchy():
         # Calculate the center of these nodes.
         centers = [self.centers[c] for c in nodes]
         center = np.mean(centers, axis=0)
-        print(center)
 
         # Calculate each node's distance to the center.
         dists = cdist([center], centers, metric=self.metric)
