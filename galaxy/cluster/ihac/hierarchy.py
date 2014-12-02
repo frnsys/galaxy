@@ -674,11 +674,26 @@ class Hierarchy():
         """
         children = self.g.get_children(n)
         dists = self.dists[n,children]
-        i = np.argmax(dists)
+        i = np.argmin(dists)
         rep = children[i]
         if self.g.is_cluster(rep):
             return self.get_representative(rep)
         return rep
+
+    def most_representative(self, nodes):
+        """
+        Returns the most representative node of a set of nodes.
+        """
+        # Calculate the center of these nodes.
+        centers = [self.centers[c] for c in nodes]
+        center = np.mean(centers, axis=0)
+        print(center)
+
+        # Calculate each node's distance to the center.
+        dists = cdist([center], centers, metric=self.metric)
+
+        i = np.argmin(dists)
+        return nodes[i]
 
     @property
     def nodes(self):

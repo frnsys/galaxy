@@ -395,6 +395,17 @@ class DistancesTest(unittest.TestCase):
         r = self.h.get_representative(2)
         self.assertEqual(r, 0)
 
+    def test_most_representative(self):
+        # Incorporating these vectors puts the center of all nodes around ~22
+        new_vecs = [[30], [40], [40]]
+        self.h.fit(new_vecs)
+
+        nodes = self.h.nodes
+        rep = self.h.most_representative(nodes)
+
+        # Expecting that the representative node is 1, w/ a center of [20]
+        self.assertEqual(rep, 1)
+
 
 class ClusterNodeTest(unittest.TestCase):
     def setUp(self):
