@@ -1,5 +1,6 @@
 import unittest
 import math
+import os
 
 import numpy as np
 from numpy.testing import assert_array_equal
@@ -7,9 +8,24 @@ from sklearn.metrics.pairwise import pairwise_distances
 
 from galaxy.cluster.ihac import Hierarchy
 
+import logging
+logging.disable(logging.CRITICAL)
+
 # We should not get any numpy warnings since all operations should work
 # if the hierarchy is working properly. So if we get a warning, we want to treat it as an error.
 np.seterr(invalid='raise')
+
+def generate_random_points():
+    cluster_a1 = np.arange(0,0.4,0.01)
+    cluster_a2 = np.arange(0.6,1,0.01)
+    cluster_b1 = np.arange(2,2.4,0.01)
+    cluster_b2 = np.arange(2.6,3,0.01)
+    points = np.append(cluster_a1, cluster_a2)
+    points = np.append(points, cluster_b1)
+    points = np.append(points, cluster_b2)
+    np.random.shuffle(points)
+
+    return [np.array([p]) for p in points]
 
 class ClusteringTest(unittest.TestCase):
     def setUp(self):
@@ -56,17 +72,26 @@ class ClusteringTest(unittest.TestCase):
         Test clustering with 160 points.
         This should just execute without error.
         """
-        cluster_a1 = np.arange(0,0.4,0.01)
-        cluster_a2 = np.arange(0.6,1,0.01)
-        cluster_b1 = np.arange(2,2.4,0.01)
-        cluster_b2 = np.arange(2.6,3,0.01)
-        points = np.append(cluster_a1, cluster_a2)
-        points = np.append(points, cluster_b1)
-        points = np.append(points, cluster_b2)
-        np.random.shuffle(points)
-
-        points = [np.array([p]) for p in points]
+        points = generate_random_points()
         self.h.fit(points)
+
+    def test_fit_uuids_are_unique(self):
+        save_path = '/tmp/hierarchy.ihac'
+        if os.path.exists:
+            os.remove(save_path)
+
+        points = generate_random_points()
+        points_list = np.array_split(points, 10)
+
+        uuids = []
+        for group in points_list:
+            uuids += self.h.fit(group)
+            self.h.save(save_path)
+            self.h = Hierarchy.load(save_path)
+
+        num_uuids   = len(uuids)
+        num_u_uuids = len(set(uuids))
+        self.assertEqual(num_uuids, num_u_uuids)
 
 class HierarchyTest(unittest.TestCase):
     def setUp(self):
@@ -99,6 +124,14 @@ class HierarchyTest(unittest.TestCase):
         self.assertEqual(new_uuids, [3,4,6])
 
     def test_save_and_load(self):
+        save_path = '/tmp/hierarchy.ihac'
+
+        if os.path.exists:
+            os.remove(save_path)
+
+        points = generate_random_points()
+        self.h.fit(points)
+
         ids     = self.h.ids
         graph   = self.h.g.mx
         dists   = self.h.dists
@@ -106,9 +139,11 @@ class HierarchyTest(unittest.TestCase):
         centers = self.h.centers
         avail   = self.h.available_ids
 
-        self.h.save('/tmp/hierarchy.ihac')
+        self.h.save(save_path)
 
-        h = Hierarchy.load('/tmp/hierarchy.ihac')
+        self.h.fit(points)
+
+        h = Hierarchy.load(save_path)
         assert_array_equal(graph,   h.g.mx)
         assert_array_equal(dists,   h.dists)
         assert_array_equal(ids,     h.ids.read())

@@ -51,6 +51,8 @@ class Hierarchy():
         h.lower_limit_scale = root._v_attrs.lower_limit_scale
         h.upper_limit_scale = root._v_attrs.upper_limit_scale
 
+        h.h5f = h5f
+
         return h
 
     def __init__(self, metric='euclidean', lower_limit_scale=0.9, upper_limit_scale=1.2):
@@ -60,15 +62,29 @@ class Hierarchy():
         self.upper_limit_scale = upper_limit_scale
 
     def save(self, filepath):
-        h5f = tb.openFile(filepath, mode='a', title='Hierarchy')
+        print('saving')
+        if not hasattr(self, 'h5f'):
+            self.h5f = tb.openFile(filepath, mode='a', title='Hierarchy')
+
+        h5f = self.h5f
         root = h5f.root
 
         # Create these arrays if necessary.
         # Otherwise they should save themselves as they are changed.
         for name, shape in [('ids', (0,1)), ('ndists', (0,2)), ('centers', (0,self.centers.shape[1]))]:
-            if not hasattr(root, name):
-                arr = h5f.create_earray(root, name, tb.Float64Atom(), shape=shape, expectedrows=1000000)
-                arr.append(getattr(self, name))
+            """
+            We're not really taking advantage of PyTables fully here since we are destroying and
+            then creating these earrays.
+            Currently the way the ids, ndists, and centers arrays are expanded is by using vstack,
+            which returns a new array so we lose the reference to the PyTable one.
+            A way around this would be to initialize these properties as earrays from the start,
+            but that requires having a filepath for the hierarchy at initialization.
+            """
+            if hasattr(root, name):
+                getattr(root, name)._f_remove()
+            arr = h5f.create_earray(root, name, tb.Float64Atom(), shape=shape, expectedrows=1000000)
+            arr.append(getattr(self, name))
+            setattr(self, name, arr)
 
         persistence.save_graph(h5f, self.g.mx)
         persistence.save_dists(h5f, self.dists)
@@ -78,8 +94,6 @@ class Hierarchy():
         root._v_attrs.metric            = self.metric
         root._v_attrs.lower_limit_scale = self.lower_limit_scale
         root._v_attrs.upper_limit_scale = self.upper_limit_scale
-
-        h5f.close()
 
     def initialize(self, vec_A, vec_B):
         """
