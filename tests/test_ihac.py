@@ -77,7 +77,7 @@ class ClusteringTest(unittest.TestCase):
 
     def test_fit_uuids_are_unique(self):
         save_path = '/tmp/hierarchy.ihac'
-        if os.path.exists:
+        if os.path.exists(save_path):
             os.remove(save_path)
 
         points = generate_random_points()
@@ -126,7 +126,7 @@ class HierarchyTest(unittest.TestCase):
     def test_save_and_load(self):
         save_path = '/tmp/hierarchy.ihac'
 
-        if os.path.exists:
+        if os.path.exists(save_path):
             os.remove(save_path)
 
         points = generate_random_points()
