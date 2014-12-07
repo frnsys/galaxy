@@ -81,7 +81,9 @@ class Hierarchy():
             """
             if hasattr(root, name):
                 getattr(root, name)._f_remove()
-            arr = h5f.create_earray(root, name, tb.Float64Atom(), shape=shape, expectedrows=1000000)
+
+            dtype = tb.UInt32Atom() if name == 'ids' else tb.Float64Atom()
+            arr = h5f.create_earray(root, name, dtype, shape=shape, expectedrows=1000000)
             arr.append(getattr(self, name))
             setattr(self, name, arr)
 
