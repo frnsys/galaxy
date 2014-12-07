@@ -62,7 +62,6 @@ class Hierarchy():
         self.upper_limit_scale = upper_limit_scale
 
     def save(self, filepath):
-        print('saving')
         if not hasattr(self, 'h5f'):
             self.h5f = tb.openFile(filepath, mode='a', title='Hierarchy')
 
