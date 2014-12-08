@@ -21,7 +21,7 @@ class Graph():
             assert mx.__class__ == csr_matrix, 'The graph adjacency matrix must be a csr_matrix.'
             self.mx = mx.toarray()
         else:
-            self.mx = csr_matrix((1,1)).toarray()
+            self.mx = csr_matrix((1,1), dtype=np.int8).toarray()
 
     def expand(self):
         """
