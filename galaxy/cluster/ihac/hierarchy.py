@@ -34,14 +34,14 @@ class Hierarchy():
         """
         Load an existing hierarchy.
         """
-        h5f = tb.openFile(filepath, mode='a', title='Hierarchy')
+        h5f = tb.openFile(filepath, mode='r', title='Hierarchy')
         root = h5f.root
 
         h = Hierarchy()
 
-        h.ids     = root.ids
-        h.ndists  = root.ndists
-        h.centers = root.centers
+        h.ids     = root.ids.read()
+        h.ndists  = root.ndists.read()
+        h.centers = root.centers.read()
 
         h.dists   = persistence.load_dists(h5f)
         h.g       = Graph(persistence.load_graph(h5f))
@@ -51,7 +51,7 @@ class Hierarchy():
         h.lower_limit_scale = root._v_attrs.lower_limit_scale
         h.upper_limit_scale = root._v_attrs.upper_limit_scale
 
-        h.h5f = h5f
+        h5f.close()
 
         return h
 
@@ -62,10 +62,7 @@ class Hierarchy():
         self.upper_limit_scale = upper_limit_scale
 
     def save(self, filepath):
-        if not hasattr(self, 'h5f'):
-            self.h5f = tb.openFile(filepath, mode='a', title='Hierarchy')
-
-        h5f = self.h5f
+        h5f = tb.openFile(filepath, mode='w', title='Hierarchy')
         root = h5f.root
 
         # Create these arrays if necessary.
@@ -85,7 +82,6 @@ class Hierarchy():
             dtype = tb.UInt32Atom() if name == 'ids' else tb.Float64Atom()
             arr = h5f.create_earray(root, name, dtype, shape=shape, expectedrows=1000000)
             arr.append(getattr(self, name))
-            setattr(self, name, arr)
 
         persistence.save_graph(h5f, self.g.mx)
         persistence.save_dists(h5f, self.dists)
@@ -95,6 +91,8 @@ class Hierarchy():
         root._v_attrs.metric            = self.metric
         root._v_attrs.lower_limit_scale = self.lower_limit_scale
         root._v_attrs.upper_limit_scale = self.upper_limit_scale
+
+        h5f.close()
 
     def initialize(self, vec_A, vec_B):
         """

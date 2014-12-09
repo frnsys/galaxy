@@ -146,9 +146,9 @@ class HierarchyTest(unittest.TestCase):
         h = Hierarchy.load(save_path)
         assert_array_equal(graph,   h.g.mx)
         assert_array_equal(dists,   h.dists)
-        assert_array_equal(ids,     h.ids.read())
-        assert_array_equal(ndists,  h.ndists.read())
-        assert_array_equal(centers, h.centers.read())
+        assert_array_equal(ids,     h.ids)
+        assert_array_equal(ndists,  h.ndists)
+        assert_array_equal(centers, h.centers)
         assert_array_equal(avail,   h.available_ids)
 
     def test_create_node(self):
