@@ -75,9 +75,6 @@ class ClusteringTest(unittest.TestCase):
         points = generate_random_points()
         self.h.fit(points)
 
-        print(self.h)
-        foo
-
     def test_fit_uuids_are_unique(self):
         save_path = '/tmp/hierarchy.ihac'
         if os.path.exists(save_path):
