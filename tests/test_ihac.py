@@ -414,6 +414,18 @@ class DistancesTest(unittest.TestCase):
         expected = [ 0., 10.,  0.]
         assert_array_equal(expected, d)
 
+    def test_get_nearest_child(self):
+        """
+           2
+        +-+--+
+        0 1  5
+            +-+
+            3 4
+        """
+        i, d = self.h.get_nearest_child(5, 1)
+        self.assertEqual(i, 4)
+        self.assertEqual(d, 0)
+
     def test_get_nearest_children(self):
         i, j, d = self.h.get_nearest_children(2)
         self.assertEqual(i, 0)

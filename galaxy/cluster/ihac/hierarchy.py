@@ -659,7 +659,7 @@ class Hierarchy():
         # Build a view of the master distance matrix showing only
         # n's distances with children of this cluster node.
         dist_mat = self.dists[[[n]], children][0]
-        i = np.argmin(self.dists)
+        i = np.argmin(dist_mat)
         return children[i], dist_mat[i]
 
     def get_nearest_children(self, n):
