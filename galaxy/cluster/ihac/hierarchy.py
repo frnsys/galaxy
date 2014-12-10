@@ -34,6 +34,7 @@ class Hierarchy():
         """
         Load an existing hierarchy.
         """
+        logging.debug('[LOADING]\t\tLoading hierarchy from {0}...'.format(filepath))
         h5f = tb.openFile(filepath, mode='r', title='Hierarchy')
         root = h5f.root
 
@@ -51,6 +52,8 @@ class Hierarchy():
         h.lower_limit_scale = root._v_attrs.lower_limit_scale
         h.upper_limit_scale = root._v_attrs.upper_limit_scale
 
+        logging.debug('[LOADING]\t\tLoaded hierarchy: {0}'.format(h))
+
         h5f.close()
 
         return h
@@ -61,7 +64,25 @@ class Hierarchy():
         self.lower_limit_scale = lower_limit_scale
         self.upper_limit_scale = upper_limit_scale
 
+    def __repr__(self):
+        return '<{module}.{cls} at {id}: nodes:{nodes}, leaves:{leaves}, ids:{ids}, ndists:{ndists}, centers:{centers}, dists:{dists}, graph:{graph}, available_ids:{available_ids}>'.format(
+            module=self.__class__.__module__,
+            cls=self.__class__.__name__,
+            id=hex(id(self)),
+            nodes=len(self.nodes),
+            leaves=self.g.leaves.shape[0],
+            ids=self.ids.shape,
+            ndists=self.ndists.shape,
+            centers=self.centers.shape,
+            dists=self.dists.shape,
+            graph=self.g.mx.shape,
+            available_ids=len(self.available_ids)
+        )
+
     def save(self, filepath):
+        logging.debug('[SAVING]\t\tSaving hierarchy {0}...'.format(self))
+        logging.debug('[SAVING]\t\tSaving hierarchy to {0}...'.format(filepath))
+
         h5f = tb.openFile(filepath, mode='w', title='Hierarchy')
         root = h5f.root
 
