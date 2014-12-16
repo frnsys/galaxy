@@ -2,7 +2,7 @@ import logging
 
 import numpy as np
 import tables as tb
-from scipy.spatial.distance import cdist, euclidean, cosine
+from scipy.spatial.distance import cdist, euclidean, cosine, pdist, squareform
 
 from .util import split_dist_matrix
 from .graph import Graph
@@ -26,7 +26,7 @@ class Hierarchy():
         which could potentially lead to a cluster with only one or less children needs
         to fix the node afterwards.
     - a "node" here is really just the index of the node in the matrices. So a node's representation is split across these matrices.
-    - any changes in a cluster's membership (e.g. via adding or removing children) must be followed up by a update_cluster to update the cluster's values, then by update_distances to update distances against that cluster (but this is done for you).
+    - any changes in a cluster's membership (e.g. via adding or removing children) must be followed up by a update_cluster to update the cluster's values.
     - creating a cluster node will automatically remove its children from their existing parents, so you don't need to call `remove_child` on their parents beforehand.
     """
     @staticmethod
@@ -44,7 +44,6 @@ class Hierarchy():
         h.ndists  = root.ndists.read()
         h.centers = root.centers.read()
 
-        h.dists   = persistence.load_dists(h5f)
         h.g       = Graph(persistence.load_graph(h5f))
         h.available_ids = persistence.load_available_ids(h5f)
 
@@ -65,7 +64,7 @@ class Hierarchy():
         self.upper_limit_scale = upper_limit_scale
 
     def __repr__(self):
-        return '<{module}.{cls} at {id}: nodes:{nodes}, leaves:{leaves}, ids:{ids}, ndists:{ndists}, centers:{centers}, dists:{dists}, graph:{graph}, available_ids:{available_ids}>'.format(
+        return '<{module}.{cls} at {id}: nodes:{nodes}, leaves:{leaves}, ids:{ids}, ndists:{ndists}, centers:{centers}, graph:{graph}, available_ids:{available_ids}>'.format(
             module=self.__class__.__module__,
             cls=self.__class__.__name__,
             id=hex(id(self)),
@@ -74,7 +73,6 @@ class Hierarchy():
             ids=self.ids.shape,
             ndists=self.ndists.shape,
             centers=self.centers.shape,
-            dists=self.dists.shape,
             graph=self.g.mx.shape,
             available_ids=len(self.available_ids)
         )
@@ -105,7 +103,6 @@ class Hierarchy():
             arr.append(getattr(self, name))
 
         persistence.save_graph(h5f, self.g.mx)
-        persistence.save_dists(h5f, self.dists)
         persistence.save_available_ids(h5f, self.available_ids)
 
         # Hierarchy metadata.
@@ -126,9 +123,6 @@ class Hierarchy():
         # n = number of nodes
         # m = number of features
 
-        # Distance matrix (nxn).
-        self.dists = np.array([[0.]], order='C', dtype=np.float64)
-
         # Nearest distance data (nx2).
         # The actual nearest distances are of variable length (size would be 1xnum_children).
         # So we only store the nearest distances mean and std.
@@ -143,7 +137,7 @@ class Hierarchy():
         self.g = Graph()
 
         # Create initial leaves and root.
-        # Centers matrix (mxn).
+        # Centers matrix (nxm).
         # It is initialized with the first vector.
         self.centers = np.array([vec_A], order='C', dtype=np.float64) # node 0
         self.create_node(vec=vec_B)                                   # node 1
@@ -154,7 +148,7 @@ class Hierarchy():
     def fit(self, vecs):
         # The uuids for each incorporated vector.
         uuids = []
-        if not hasattr(self, 'dists'):
+        if not hasattr(self, 'centers'):
             if len(vecs) < 2:
                 raise Exception('You must initialize the hierarchy with at least two vectors.')
             uuids += self.initialize(*vecs[:2])
@@ -268,23 +262,17 @@ class Hierarchy():
         if self.available_ids:
             id = self.available_ids.pop()
 
-            # Now that we are using the distance row and col for this id,
-            # reset to 0 (instead of inf).
-            self.dists[id] = 0
-            self.dists[:,id] = 0
-
             # Reset relationships for this node id.
             self.g.reset_node(id)
 
         # Otherwise we need to expand the distance matrix and use a new id.
         else:
-            # The next id is the length of dimension of the distance matrix.
-            id = self.dists.shape[0]
+            # The next id is the length of dimension of the centers matrix.
+            id = self.centers.shape[0]
 
             # Resize the distance, graph, centers, and ids matrices.
             # We can't use `np.resize` because it flattens the array first,
             # which moves values all over the place.
-            self.dists   = self._expand_mat(self.dists, True, True)
             self.ndists  = self._expand_mat(self.ndists, False, True)
             self.centers = self._expand_mat(self.centers, False, True)
             self.ids     = self._expand_mat(self.ids, False, True)
@@ -295,15 +283,10 @@ class Hierarchy():
         if children:
             logging.debug('[CREATE]\t\t Creating cluster {0} with children {1}...'.format(id, children))
             self.g.set_parents(id, children)
-
-            # Update cluster calculates the cluster's center
-            # and updates distances against in,
-            # which is why `update_distances` is unnecessary here.
             self.update_cluster(id)
         else:
             logging.debug('[CREATE]\t\t Creating leaf {0}...'.format(id))
             self.centers[id] = vec
-            self.update_distances(id)
 
         # Assign an incremented id. These should be universally unique.
         uuid = np.max(self.ids) + 1
@@ -331,10 +314,6 @@ class Hierarchy():
 
         # Remove the node from the hierarchy.
         self.g.reset_node(n)
-
-        # Make all distances against the node infinity.
-        self.dists[n]   = np.inf  # row
-        self.dists[:,n] = np.inf  # col
 
         # Make the node's center infinity.
         self.centers[n] = np.inf  # row
@@ -376,10 +355,6 @@ class Hierarchy():
         """
         children = self.g.get_children(p)
         self.centers[p] = np.mean([self.centers[c] for c in children], axis=0)
-
-        # Since this node's center has changed,
-        # distances to it must be updated.
-        self.update_distances(p)
 
         ndists = self.get_nearest_distances(p)
         self.ndists[p] = [np.mean(ndists), np.std(ndists)]
@@ -595,27 +570,10 @@ class Hierarchy():
 
     def get_distance(self, i, j):
         if i == j: return 0
+        return dist_funcs[self.metric](self.centers[i], self.centers[j])
 
-        # We only calculate distances for the lower triangle,
-        # so adjust indices accordingly.
-        idx = (j,i) if i < j else (i,j)
-        d = self.dists[idx]
-
-        # Calculate if necessary.
-        if d == 0:
-            d = dist_funcs[self.metric](self.centers[i], self.centers[j])
-            self.dists[idx] = d
-        return d
-
-    def update_distances(self, n):
-        """
-        Update the distances of the node n against all other nodes.
-        """
-        # Update the row with the new distances.
-        self.dists[n] = cdist([self.centers[n]], self.centers, metric=self.metric)
-        # Also update the column.
-        self.dists[:,n] = self.dists[n].T
-
+    def get_distances(self, n, nodes):
+        return [self.get_distance(n, node) for node in nodes]
 
     # =================================================================
     # NODE PROPS ======================================================
@@ -634,8 +592,8 @@ class Hierarchy():
         not propagated to the original matrix.
         """
         children = self.g.get_children(i)
-        rows, cols = zip(*[([ch], ch) for ch in children])
-        return self.dists[rows, cols]
+        dists = pdist(self.centers[children], metric=self.metric)
+        return squareform(dists)
 
     def get_closest_leaf(self, n):
         """
@@ -646,7 +604,7 @@ class Hierarchy():
         # n's distances from the leaves of this hierarchy,
         # since we're not looking at cluster nodes.
         leaves = self.g.leaves
-        dist_mat = self.dists[[[n]], leaves[leaves != n]][0]
+        dist_mat = self.get_distances(n, leaves[leaves != n])
         i = np.argmin(dist_mat)
         return leaves[i], dist_mat[i]
 
@@ -658,7 +616,7 @@ class Hierarchy():
 
         # Build a view of the master distance matrix showing only
         # n's distances with children of this cluster node.
-        dist_mat = self.dists[[[n]], children][0]
+        dist_mat = self.get_distances(n, children)
         i = np.argmin(dist_mat)
         return children[i], dist_mat[i]
 
@@ -707,7 +665,7 @@ class Hierarchy():
         Here we are just taking the child closest to the cluster's center.
         """
         children = self.g.get_children(n)
-        dists = self.dists[n,children]
+        dists = self.get_distances(n, children)
         i = np.argmin(dists)
         rep = children[i]
         if self.g.is_cluster(rep):
@@ -732,9 +690,9 @@ class Hierarchy():
     def nodes(self):
         """
         Returns all nodes in the hierarchy.
-        These are all nodes that do not have infinite distance.
+        These are all ids that are not in `available_ids`.
         """
-        return np.where(np.any(self.dists != np.inf, axis=1))[0].tolist()
+        return [n for n in range(self.centers.shape[0]) if n not in self.available_ids]
 
     def upper_limit(self, n):
         """

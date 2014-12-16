@@ -111,8 +111,7 @@ class HierarchyTest(unittest.TestCase):
         return self.h.create_node(children=children)
 
     def test_init(self):
-        # The dist and graph matrices are square (nxn).
-        self.assertEqual(self.h.dists.shape, (3,3))
+        # The graph matrices is square (nxn).
         self.assertEqual(self.h.g.mx.shape, (3,3))
 
         # The centers matrix is nxm.
@@ -134,7 +133,6 @@ class HierarchyTest(unittest.TestCase):
 
         ids     = self.h.ids
         graph   = self.h.g.mx
-        dists   = self.h.dists
         ndists  = self.h.ndists
         centers = self.h.centers
         avail   = self.h.available_ids
@@ -145,7 +143,6 @@ class HierarchyTest(unittest.TestCase):
 
         h = Hierarchy.load(save_path)
         assert_array_equal(graph,   h.g.mx)
-        assert_array_equal(dists,   h.dists)
         assert_array_equal(ids,     h.ids)
         assert_array_equal(ndists,  h.ndists)
         assert_array_equal(centers, h.centers)
@@ -159,9 +156,6 @@ class HierarchyTest(unittest.TestCase):
                                    [ 10., 10.,  0.,  0.],
                                    [ 10., 10.,  0.,  0.]])
 
-        # Distance matrix should be reshaped.
-        self.assertEqual(self.h.dists.shape, (4,4))
-        self.assertTrue((self.h.dists == expected_dists).all())
         self.assertEqual(self.h.nodes, self.initial_leaves + [self.initial_clus, node])
 
         # Id should properly be assigned.
@@ -380,20 +374,6 @@ class DistancesTest(unittest.TestCase):
             d = self.h.get_distance(n, node_k)
             d_ = self.h.get_distance(node_k, n)
             self.assertEqual(d, d_)
-
-    def test_update_distances(self):
-        # Create some extra nodes.
-        data = np.array([[1],[2],[4],[8],[12]])
-        nodes = [self.h.create_node(vec=center) for center in data]
-
-        # Calculate a distance matrix independently to compare to.
-        # We include the vector which initialized the hierarchy
-        # and the center of the initial cluster node.
-        old_data = self.initial_vecs + [self.h.centers[self.clusters[0]]] + self.vecs[2:] + [self.h.centers[self.clusters[1]]]
-        data = np.insert(data, 0, old_data, axis=0)
-        dist_mat = pairwise_distances(data, metric='euclidean')
-
-        self.assertTrue((dist_mat == self.h.dists).all())
 
     def test_cdm(self):
         # Expecting the matrix to have rows and columns 0,1,n (n=5)
