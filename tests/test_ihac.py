@@ -496,11 +496,11 @@ class ClusterNodeTest(unittest.TestCase):
         # The mean of the nearest distances.
         mins = [1,1,4,2,4]
         expected_nearest_distance_mean = sum(mins)/len(mins)
-        self.assertEqual(np.mean(self.h.get_nearest_distances(c)), expected_nearest_distance_mean)
+        self.assertAlmostEqual(np.mean(self.h.get_nearest_distances(c)), expected_nearest_distance_mean, places=6)
 
         # The std of the nearest distances.
         expected_nearest_distance_std = math.sqrt(sum([(min - expected_nearest_distance_mean)**2 for min in mins])/len(mins))
-        self.assertAlmostEqual(np.std(self.h.get_nearest_distances(c)), expected_nearest_distance_std)
+        self.assertAlmostEqual(np.std(self.h.get_nearest_distances(c)), expected_nearest_distance_std, places=6)
 
     def test_split_children(self):
         """

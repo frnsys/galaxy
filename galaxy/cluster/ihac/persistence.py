@@ -67,7 +67,7 @@ def save_dists(h5f, dists):
         h5f.root.dists._f_remove()
 
     # Then create a new one!
-    arr = h5f.create_carray(h5f.root, 'dists', tb.Float64Atom(), shape=dists.shape)
+    arr = h5f.create_carray(h5f.root, 'dists', tb.Atom.from_dtype(dists.dtype), shape=dists.shape)
     arr[:] = dists
 
 def load_dists(h5f):

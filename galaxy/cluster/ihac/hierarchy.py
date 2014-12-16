@@ -100,9 +100,9 @@ class Hierarchy():
             if hasattr(root, name):
                 getattr(root, name)._f_remove()
 
-            dtype = tb.UInt32Atom() if name == 'ids' else tb.Float64Atom()
-            arr = h5f.create_earray(root, name, dtype, shape=shape, expectedrows=1000000)
-            arr.append(getattr(self, name))
+            data = getattr(self, name)
+            arr = h5f.create_earray(root, name, tb.Atom.from_dtype(data.dtype), shape=shape, expectedrows=1000000)
+            arr.append(data)
 
         persistence.save_graph(h5f, self.g.mx)
         persistence.save_dists(h5f, self.dists)
@@ -127,12 +127,12 @@ class Hierarchy():
         # m = number of features
 
         # Distance matrix (nxn).
-        self.dists = np.array([[0.]], order='C', dtype=np.float64)
+        self.dists = np.array([[0.]], order='C', dtype=np.float32)
 
         # Nearest distance data (nx2).
         # The actual nearest distances are of variable length (size would be 1xnum_children).
         # So we only store the nearest distances mean and std.
-        self.ndists = np.array([[0., 0.]], order='C', dtype=np.float64)
+        self.ndists = np.array([[0., 0.]], order='C', dtype=np.float32)
 
         # Leaf node ID matrix (nx1)
         # This maps internal ids of leaf nodes (which are resued) to a universally unique one.
