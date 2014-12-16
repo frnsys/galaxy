@@ -56,23 +56,3 @@ def load_graph(h5f):
         return csr_matrix(tuple(params[:3]), shape=params[3])
     else:
         return csr_matrix(h5f.root.graph.read())
-
-def save_dists(h5f, dists):
-    """
-    This is not ideal...but afaik pytables doesn't support expandable square matrices.
-    We just completely overwrite the existing distances with the new ones.
-    """
-    # First delete the existing dists array.
-    if hasattr(h5f.root, 'dists'):
-        h5f.root.dists._f_remove()
-
-    # Then create a new one!
-    arr = h5f.create_carray(h5f.root, 'dists', tb.Float64Atom(), shape=dists.shape)
-    arr[:] = dists
-
-def load_dists(h5f):
-    """
-    Because pytables doesn't support expandable square matrices,
-    we load the entire distance matrix into memory.
-    """
-    return h5f.root.dists.read()
