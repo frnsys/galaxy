@@ -1,3 +1,11 @@
+# Galaxy
+
+These are some implementations of text clustering algorithms, though only the implementation of
+Incremental Hierarchical Agglomerative Clustering (IHAC) has been polished and completed.
+
+This project was put together specifically for [Argos](https://github.com/publicscience/argos)
+so some of the setup is tailored to that, though I eventually hope to make it a bit more general.
+
 ## Setup
 
 There is some prep you need to do for Pytables (the `tables` package):
