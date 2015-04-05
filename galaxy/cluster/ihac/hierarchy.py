@@ -155,7 +155,8 @@ class Hierarchy():
         # The uuids for each incorporated vector.
         uuids = []
         if not hasattr(self, 'dists'):
-            if len(vecs) < 2:
+            size = len(vecs) if isinstance(vecs, list) else vecs.shape[0]
+            if size < 2:
                 raise Exception('You must initialize the hierarchy with at least two vectors.')
             uuids += self.initialize(*vecs[:2])
             vecs = vecs[2:]
