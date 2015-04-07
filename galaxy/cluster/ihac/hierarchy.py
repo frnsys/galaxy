@@ -8,6 +8,11 @@ from .util import split_dist_matrix
 from .graph import Graph
 from . import persistence, visual
 
+"""
+WORD OF WARNING: if you may have zero vectors,
+do not use cosine as your distance metric.
+You will divide by zero and end up with nans.
+"""
 dist_funcs = {
     'euclidean': euclidean,
     'cosine':    cosine
@@ -28,6 +33,7 @@ class Hierarchy():
     - a "node" here is really just the index of the node in the matrices. So a node's representation is split across these matrices.
     - any changes in a cluster's membership (e.g. via adding or removing children) must be followed up by a update_cluster to update the cluster's values, then by update_distances to update distances against that cluster (but this is done for you).
     - creating a cluster node will automatically remove its children from their existing parents, so you don't need to call `remove_child` on their parents beforehand.
+
     """
     @staticmethod
     def load(filepath):
