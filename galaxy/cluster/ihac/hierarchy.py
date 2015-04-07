@@ -309,6 +309,11 @@ class Hierarchy():
             self.update_cluster(id)
         else:
             logging.debug('[CREATE]\t\t Creating leaf {0}...'.format(id))
+
+            # For sanity
+            if not np.any(vec) and self.metric == 'cosine':
+                raise RuntimeWarning('You have an all zero vector while using the cosine metric. Some of your distances will end up as nan.')
+
             self.centers[id] = vec
             self.update_distances(id)
 
@@ -779,6 +784,9 @@ class Hierarchy():
         return d > self.upper_limit(C)
 
     def get_nearest_distances(self, n):
+        """
+        For each child of n, find its distance to its closest sibling.
+        """
         dist_mat = self.cdm(n)
         np.fill_diagonal(dist_mat, np.inf)
         return np.min(dist_mat, axis=0)
