@@ -844,3 +844,18 @@ class Hierarchy():
 
             # Otherwise, keep going down the branch.
             yield from self.snip(self.g.get_children(n), distance_threshold)
+
+    def avg_density(self):
+        """
+        Calculates average density of clusters.
+        """
+        lvl_avgs = []
+        current_lvl = [self.g.root]
+        while current_lvl:
+            next_lvl = []
+            lvl_avgs.append(np.mean([np.mean(self.get_nearest_distances(n)) for n in current_lvl]))
+            for n in current_lvl:
+                next_lvl += [ch for ch in self.g.get_children(n) if self.g.is_cluster(ch)]
+            current_lvl = next_lvl
+
+        return np.mean(lvl_avgs), lvl_avgs
