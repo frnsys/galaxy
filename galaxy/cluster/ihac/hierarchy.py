@@ -845,9 +845,9 @@ class Hierarchy():
             # Otherwise, keep going down the branch.
             yield from self.snip(self.g.get_children(n), distance_threshold)
 
-    def avg_density(self):
+    def avg_distances(self):
         """
-        Calculates average density of clusters.
+        Calculates average distances of clusters.
         """
         lvl_avgs = []
         current_lvl = [self.g.root]
